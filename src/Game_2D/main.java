@@ -7,13 +7,18 @@ public class main {
         JFrame window = new JFrame();
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setResizable(true);
-        window.setLocationRelativeTo(null);
+
 
         gamePanel gPanel = new gamePanel();
         window.add(gPanel);
 
+        window.setSize(60,300);
+
+
         window.pack();
-        
+
+        window.setLocationRelativeTo(null);
+
         window.setTitle("My game");
         window.setVisible(true);
 
@@ -22,3 +27,5 @@ public class main {
 
     }
 }
+
+
