@@ -1,9 +1,11 @@
 package tile;
 
 import Game_2D.gamePanel;
+import Game_2D.utiltityTool;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,25 +28,27 @@ public class tileManager {
     }
 
     public void getTileImage() {
-        try {
-            tile[0] = new tile();
-            tile[0].image = ImageIO.read(getClass().getResourceAsStream("/tile/grass.png"));
-
-            tile[1] = new tile();
-            tile[1].image = ImageIO.read(getClass().getResourceAsStream("/tile/water.png"));
-
-
-            tile[2] = new tile();
-            tile[2].image = ImageIO.read(getClass().getResourceAsStream("/tile/stone.png"));
-            tile[2].collision = true ;
-
-            tile[3] = new tile();
-            tile[3].image = ImageIO.read(getClass().getResourceAsStream("/tile/wood.png"));
+        setup(0,"grass",false);
+        setup(1,"water",false);
+        setup(2,"stone",true);
+        setup(3,"wood",false);
+    }
 
 
-        } catch (IOException e) {
+    public void setup(int index, String imagePath, boolean collision){
+        utiltityTool uTool = new utiltityTool();
+
+        try{
+            tile[index]= new tile();
+            tile[index].image = ImageIO.read(getClass().getResourceAsStream("/tile/" + imagePath +".png"));
+            tile[index].image = uTool.scaleImage(tile[index].image, gp.tileSize, gp.tileSize);
+            tile[index].collision = collision;
+
+        }
+        catch (IOException e){
             e.printStackTrace();
         }
+
     }
 
     public void loadMap(String filePath) {
@@ -90,7 +94,7 @@ public class tileManager {
                     worldY +gp.tileSize> gp.player.worldY - gp.player.screenY &&
                     worldY-gp.tileSize < gp.player.worldY + gp.player.screenY)
             {
-                g2.drawImage(tile[tileNum].image, screenX, screenY, gp.tileSize, gp.tileSize, null);
+                g2.drawImage(tile[tileNum].image, screenX, screenY,  null);
 
             }
 

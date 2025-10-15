@@ -11,8 +11,8 @@ public class gamePanel extends JPanel implements Runnable {
     final int scale = 2;
     public final int tileSize = orgsSize * scale *2; // = 64
 //set size màn hình mặt định
-    public int maxColumn = 16;
-    public int maxRow = 12;
+    public int maxColumn = 18;
+    public int maxRow = 9;
 
     public final int width = tileSize * maxColumn;   // 64 * 16 = 1024
     public final int height = tileSize * maxRow;
@@ -80,6 +80,9 @@ public class gamePanel extends JPanel implements Runnable {
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D)g;
+
+
+
         tileM.draw(g2);
         player.draw(g2);
         g2.dispose();

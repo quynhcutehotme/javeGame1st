@@ -7,6 +7,7 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import Game_2D.utiltityTool;
 
 public class player extends entity{
 
@@ -15,8 +16,7 @@ public class player extends entity{
 
     public int screenX;
     public final int screenY;
-    public int camX;      // camera X
-    public int lastCamX;
+
 
 
     public player(gamePanel gp, keyHander keyH){
@@ -49,22 +49,30 @@ public class player extends entity{
     }
 
     public void getPlayerImage(){
-        try {
-            up1 = ImageIO.read(getClass().getResourceAsStream("/player/up1.png"));
-            up2 = ImageIO.read(getClass().getResourceAsStream("/player/up1-2.png.png"));
-            down1 = ImageIO.read(getClass().getResourceAsStream("/player/back-6.png.png"));
-            down2 = ImageIO.read(getClass().getResourceAsStream("/player/back-7.png.png"));
-            right1 = ImageIO.read(getClass().getResourceAsStream("/player/right-3.png.png"));
-            right2 = ImageIO.read(getClass().getResourceAsStream("/player/right-4.png.png"));
-            left1 = ImageIO.read(getClass().getResourceAsStream("/player/left.png"));
-            left2 = ImageIO.read(getClass().getResourceAsStream("/player/left2.png"));
+        up1 = setup("up1");
+        up2 = setup("up1-2.png");
+        down1 = setup("back-6.png");
+        down2 = setup("back-7.png");
+        right1 = setup("right-3.png");
+        right2 = setup("right-4.png");
+        left1 = setup("left");
+        left2 = setup("left2");
+
+    }
+
+    public BufferedImage setup(String imagePath){
+        utiltityTool uTool = new utiltityTool();
+        BufferedImage image = null;
+
+        try{
+            image = ImageIO.read(getClass().getResourceAsStream("/player/"+imagePath+".png"));
+            image = uTool.scaleImage(image, gp.tileSize,gp.tileSize);
 
         }
-
-        catch(IOException e){
+        catch (IOException e ){
             e.printStackTrace();
         }
-
+        return  image;
     }
 
 
@@ -166,7 +174,7 @@ public class player extends entity{
 
 
 
-        g2.drawImage(image, screenX, screenY, gp.tileSize, gp.tileSize, null);
+        g2.drawImage(image, screenX, screenY, null);
 
 
         g2.setColor(Color.white);
