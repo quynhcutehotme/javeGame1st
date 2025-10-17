@@ -16,9 +16,6 @@ public class player extends entity{
 
     public int screenX;
     public final int screenY;
-<<<<<<< HEAD
-
-=======
     // Jump/Gravity state
     private float velocityY = 0f;
     private float gravity = 0.6f;
@@ -27,7 +24,6 @@ public class player extends entity{
     private int jumpVisualOffset = 0; // pixels above screenY for drawing
     public int camX;      // camera X
     public int lastCamX;
->>>>>>> 772303b (First commit - export full project)
 
 
     public player(gamePanel gp, keyHander keyH){
