@@ -16,7 +16,18 @@ public class player extends entity{
 
     public int screenX;
     public final int screenY;
+<<<<<<< HEAD
 
+=======
+    // Jump/Gravity state
+    private float velocityY = 0f;
+    private float gravity = 0.6f;
+    private float jumpStrength = -10f;
+    private boolean isGrounded = true;
+    private int jumpVisualOffset = 0; // pixels above screenY for drawing
+    public int camX;      // camera X
+    public int lastCamX;
+>>>>>>> 772303b (First commit - export full project)
 
 
     public player(gamePanel gp, keyHander keyH){
@@ -78,6 +89,7 @@ public class player extends entity{
 
     public void update(){
 
+        // Horizontal movement (existing)
         if (keyH.upPress == true ||keyH.downPress == true ||keyH.leftPress == true ||keyH.rightPress == true){
             if (keyH.upPress == true){
                 direction ="up";
@@ -115,6 +127,18 @@ public class player extends entity{
 
                         break;
                 }
+
+                // Prevent reaching the world border: block exactly the outermost row/column
+                // Allow movement only within tile indices [1 .. max-2]
+                int minX = 1 * gp.tileSize;
+                int minY = 1 * gp.tileSize;
+                int maxX = (gp.maxWorldCol - 2) * gp.tileSize;
+                int maxY = (gp.maxWorldRow - 2) * gp.tileSize;
+
+                if (worldX < minX) worldX = minX;
+                if (worldY < minY) worldY = minY;
+                if (worldX > maxX) worldX = maxX;
+                if (worldY > maxY) worldY = maxY;
             }
 
 
@@ -131,6 +155,25 @@ public class player extends entity{
             }
         }
 
+        // Jump input: start jump if grounded
+        if (keyH.jumpPress && isGrounded) {
+            velocityY = jumpStrength;
+            isGrounded = false;
+        }
+
+        // Apply gravity when not grounded
+        if (!isGrounded) {
+            velocityY += gravity;
+            jumpVisualOffset += (int) Math.round(velocityY);
+
+            // Simple ground at base position (offset back to 0)
+            if (jumpVisualOffset > 0) {
+                jumpVisualOffset = 0;
+                velocityY = 0f;
+                isGrounded = true;
+            }
+        }
+
         }
 
 
@@ -143,16 +186,16 @@ public class player extends entity{
         switch (direction) {
             case "down":
                 if (spriteNum==1){
-                    image=up1;}
+                    image=down1;}
                 if (spriteNum==2) {
-                    image=up2;
+                    image=down2;
                 }
                 break;
             case "up":
                 if (spriteNum==1){
-                    image=down1;}
+                    image=up1;}
                 if (spriteNum==2) {
-                    image=down2;
+                    image=up2;
                 }
                 break;
             case "right":
@@ -174,7 +217,12 @@ public class player extends entity{
 
 
 
+<<<<<<< HEAD
         g2.drawImage(image, screenX, screenY, null);
+=======
+        // Draw with vertical offset to visualize jump
+        g2.drawImage(image, screenX, screenY + jumpVisualOffset, gp.tileSize, gp.tileSize, null);
+>>>>>>> 772303b (First commit - export full project)
 
 
         g2.setColor(Color.white);
@@ -201,7 +249,7 @@ public class player extends entity{
 //    gamePanel gp;
 //    keyHander keyH;
 //
-//    public int camX;   // Camera X (tọa độ thế giới)
+//    public int camX;   // Camera X (world coordinates)
 //    public final int screenY;
 //    public int drawX;
 //

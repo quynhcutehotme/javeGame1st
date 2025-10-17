@@ -61,10 +61,23 @@ public class tileManager {
                 String line = br.readLine();
                 if (line == null) break;
 
-                String number[] = line.trim().split("\\s+");
+                line = line.trim();
+                if (line.isEmpty()) {
+                    // Skip blank lines
+                    continue;
+                }
+
+                String[] parts = line.split("\\s+");
                 for (int col = 0; col < gp.maxWorldCol; col++) {
-                    int num = Integer.parseInt(number[col]);
-                    mapTileNum[col][row] = num;
+                    int value = 0;
+                    if (col < parts.length && !parts[col].isEmpty()) {
+                        try {
+                            value = Integer.parseInt(parts[col]);
+                        } catch (NumberFormatException ignore) {
+                            value = 0;
+                        }
+                    }
+                    mapTileNum[col][row] = value;
                 }
                 row++;
             }
@@ -79,6 +92,10 @@ public class tileManager {
         int worldCol = 0;
         int worldRow = 0;
 
+        // Fill background to avoid showing panel background at edges
+        g2.setColor(new Color(92, 201, 141));
+        g2.fillRect(0, 0, gp.width, gp.height);
+
 
         while (worldCol < gp.maxWorldCol && worldRow < gp.maxWorldRow) {
 
@@ -89,10 +106,10 @@ public class tileManager {
             int screenX = worldX - gp.player.worldX + gp.player.screenX;
             int screenY = worldY - gp.player.worldY + gp.player.screenY;
 
-            if (worldX +gp.tileSize > gp.player.worldX - gp.player.screenX &&
-                    worldX -gp.tileSize < gp.player.worldX + gp.player.screenX  &&
-                    worldY +gp.tileSize> gp.player.worldY - gp.player.screenY &&
-                    worldY-gp.tileSize < gp.player.worldY + gp.player.screenY)
+            if (worldX + gp.tileSize > gp.player.worldX - gp.player.screenX &&
+                    worldX - gp.tileSize < gp.player.worldX + gp.player.screenX  &&
+                    worldY + gp.tileSize > gp.player.worldY - gp.player.screenY &&
+                    worldY - gp.tileSize < gp.player.worldY + gp.player.screenY)
             {
                 g2.drawImage(tile[tileNum].image, screenX, screenY,  null);
 
