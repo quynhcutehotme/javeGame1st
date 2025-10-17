@@ -213,12 +213,8 @@ public class player extends entity{
 
 
 
-<<<<<<< HEAD
-        g2.drawImage(image, screenX, screenY, null);
-=======
-        // Draw with vertical offset to visualize jump
-        g2.drawImage(image, screenX, screenY + jumpVisualOffset, gp.tileSize, gp.tileSize, null);
->>>>>>> 772303b (First commit - export full project)
+		// Draw with vertical offset to visualize jump
+		g2.drawImage(image, screenX, screenY + jumpVisualOffset, gp.tileSize, gp.tileSize, null);
 
 
         g2.setColor(Color.white);
