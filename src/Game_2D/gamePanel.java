@@ -10,6 +10,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 public class gamePanel extends JPanel implements Runnable {
+    BackgroundMusic bgMusic;
+    BackgroundMusic loseMusic;
     final int orgsSize = 16;
     final int scale = 2;
     public final int tileSize = orgsSize * scale *2; // = 64
@@ -48,6 +50,9 @@ public class gamePanel extends JPanel implements Runnable {
     private boolean showGameOverMenu = false;
 
     public gamePanel (){
+        bgMusic = new BackgroundMusic("/music/MusicBackground.wav");
+        loseMusic = new BackgroundMusic("/music/over_ending.wav");
+        bgMusic.playLoop();
         this.setPreferredSize(new Dimension(width,height));
         this.setBackground(new Color(92, 201, 141));
         this.setDoubleBuffered(true);
@@ -150,6 +155,9 @@ public class gamePanel extends JPanel implements Runnable {
         System.out.println("triggerGameOver() called");
         gameOver = true;
         showGameOverMenu = true;
+        if (bgMusic != null) bgMusic.stop();
+        // ★ PHÁT NHẠC THUA (1 lần)
+        if (loseMusic != null) loseMusic.playOnce();
         System.out.println("Game over menu should be visible now");
     }
 
@@ -163,6 +171,13 @@ public class gamePanel extends JPanel implements Runnable {
         damageEffects.clear(); // Clear any existing damage effects
         gameOver = false;
         showGameOverMenu = false;
+
+        if (loseMusic != null) loseMusic.stop();
+        if (bgMusic != null) {
+            bgMusic.stop();
+            bgMusic.playLoop();
+        }
+
         this.revalidate();
         this.repaint();
     }
@@ -209,7 +224,7 @@ public class gamePanel extends JPanel implements Runnable {
             // "YOU LOSE" text
             g2.setFont(g2.getFont().deriveFont(Font.BOLD, 32f));
             g2.setColor(Color.RED);
-            String loseText = "YOU LOSE";
+            String loseText = "LOSER";
             int textWidth = g2.getFontMetrics().stringWidth(loseText);
             g2.drawString(loseText, menuX + (menuWidth - textWidth) / 2, menuY + 60);
             
