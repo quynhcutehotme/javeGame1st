@@ -28,8 +28,8 @@ public class tileManager {
     }
 
     public void getTileImage() {
-        setup(0,"grass",false);
-        setup(1,"water",false);
+        setup(0,"grass2",false);
+        setup(1,"sky",false);
         setup(2,"stone",true);
         setup(3,"wood",false);
     }

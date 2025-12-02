@@ -10,6 +10,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 public class gamePanel extends JPanel implements Runnable {
+    Image cloudImage;
     BackgroundMusic bgMusic;
     BackgroundMusic loseMusic;
     final int orgsSize = 16;
@@ -60,6 +61,17 @@ public class gamePanel extends JPanel implements Runnable {
         this.setFocusable(true);
         // spawn some bots
         spawnBots();
+
+        try {
+            java.net.URL imageUrl = getClass().getResource("/tile/clound1.png");
+            if (imageUrl != null) {
+                cloudImage = new ImageIcon(imageUrl).getImage();
+            } else {
+                System.err.println("Lỗi: Không tìm thấy tài nguyên /tile/clound1.png.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void spawnBots() {
@@ -189,6 +201,7 @@ public class gamePanel extends JPanel implements Runnable {
 
 
         tileM.draw(g2);
+
         for (bot b : bots) {
             b.draw(g2);
         }
@@ -203,6 +216,15 @@ public class gamePanel extends JPanel implements Runnable {
         g2.setColor(Color.BLACK);
         g2.setFont(g2.getFont().deriveFont(Font.BOLD, 20f));
         g2.drawString("HP: " + playerHp, 10, 24);
+
+
+        if (cloudImage != null) {
+            g2.drawImage(cloudImage, 50, 50, 100, 100, this);
+            g2.drawImage(cloudImage, 400, 70, 100, 80, this);
+            g2.drawImage(cloudImage, 700, 80, 120, 150, this);
+            g2.drawImage(cloudImage, 1000, 55, 150, 80, this);
+
+        }
         
         // Game Over Menu
         if (showGameOverMenu) {
