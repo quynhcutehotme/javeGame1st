@@ -25,7 +25,7 @@ public class UI {
             // --- 2. LOAD ẢNH NỀN VÀO BỘ NHỚ ---
             // (Lưu ý: Nếu không tìm thấy ảnh, nó sẽ in lỗi ra console nhưng game vẫn chạy nền đen)
             if (getClass().getResourceAsStream("/res/ui/background.png") != null) {
-                titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/background.png"));
+                titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/backgr.png"));
             } else {
                 System.err.println("!!! THIẾU ẢNH NỀN: /res/ui/background.png");
             }
@@ -69,35 +69,23 @@ public class UI {
             g2.fillRect(0, 0, gp.width, gp.height);
         }
 
-        // Vẽ Tên Game
-        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 80F));
-        String text = "BÁT CHÁO HÀNH";
-        int x = getXforCenteredText(text);
-        int y = gp.tileSize * 3;
-
-        // Vẽ bóng chữ (Màu đen cho dễ đọc trên nền ảnh)
-        g2.setColor(Color.black);
-        g2.drawString(text, x + 6, y + 6);
-        // Vẽ chữ chính (Màu trắng)
-        g2.setColor(Color.white);
-        g2.drawString(text, x, y);
 
         // Vẽ Nút Bấm
         int btnWidth = gp.tileSize * 4;
-        int btnHeight = gp.tileSize;
+        int btnHeight = gp.tileSize *3;
         int btnX = (gp.width / 2) - (btnWidth / 2);
         int btnY = gp.tileSize * 5;
 
         // Nút START
-        if (btnStart != null) g2.drawImage(btnStart, btnX, btnY, btnWidth, btnHeight, null);
+        if (btnStart != null) g2.drawImage(btnStart, btnX, btnY-100, btnWidth, btnHeight, null);
         if (commandNum == 0) {
             g2.setColor(Color.white); // Mũi tên màu trắng
-            g2.drawString(">", btnX - gp.tileSize, btnY + 52);
+            g2.drawString(">", btnX - gp.tileSize, btnY+10);
         }
 
         // Nút GUIDE
         btnY += gp.tileSize * 1.5;
-        if (btnGuide != null) g2.drawImage(btnGuide, btnX, btnY, btnWidth, btnHeight, null);
+        if (btnGuide != null) g2.drawImage(btnGuide, btnX-14, btnY-60, btnWidth+35, btnHeight+35, null); // Kích thước và vị trí chưa đồng bộ
         if (commandNum == 1) {
             g2.drawString(">", btnX - gp.tileSize, btnY + 52);
         }

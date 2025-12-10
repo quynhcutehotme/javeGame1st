@@ -73,7 +73,7 @@ public class gamePanel extends JPanel implements Runnable {
         }
 
         this.setPreferredSize(new Dimension(width, height));
-        this.setBackground(new Color(92, 201, 141));
+        this.setBackground(new Color(37, 150, 190));
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
         this.setFocusable(true);
@@ -242,7 +242,7 @@ public class gamePanel extends JPanel implements Runnable {
             if (backgroundImage != null) {
                 g2.drawImage(backgroundImage, 0, 0, width, height, null);
             } else {
-                g2.setColor(new Color(92, 201, 141));
+                g2.setColor(new Color(37, 150, 190));
                 g2.fillRect(0, 0, width, height);
             }
 
