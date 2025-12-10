@@ -8,11 +8,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.util.Random;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import tile.tileManager;
 
-public class gamePanel extends JPanel implements Runnable {
+public class gamePanel extends JPanel implements Runnable, MouseListener {
     Image cloudImage;
     BackgroundMusic bgMusic;
     BackgroundMusic loseMusic;
@@ -53,6 +56,8 @@ public class gamePanel extends JPanel implements Runnable {
     public player player = new player(this, keyH);
     public java.util.List<bot> bots = new java.util.ArrayList<>();
     public java.util.List<damageEffect> damageEffects = new java.util.ArrayList<>();
+    private final java.util.List<AttackEffect> attackEffects = new java.util.ArrayList<>();
+    private final Random random = new Random();
 
     // PLAYER SETTINGS
     public int playerHp = 3;
@@ -66,14 +71,59 @@ public class gamePanel extends JPanel implements Runnable {
     private boolean gameWon = false;
     private boolean showWinMenu = false;
     
-    // Timer for survival win condition
+    // Timer for scaling difficulty (no longer used for win condition)
     private long gameStartTime;
-    private long survivalTimeSeconds = 15; // Win after 15 seconds
     private long currentTimeElapsed = 0;
+    private long survivalTimeSeconds = 15; // used for difficulty scaling only
+    // Spawn pacing: ramps from slower to faster
+    private final long maxSpawnIntervalMs = 1000; // start slower
+    private final long minSpawnIntervalMs = 350;  // faster floor
+    private final long spawnRampDurationSec = 30; // reach min over 30s
+    private long lastBotSpawnTime = System.currentTimeMillis();
+    private int botsKilled = 0;
+    private final int killsToWin = 5;
+    private final int maxBotsOnField = 6;
     
     // Bot speed scaling
     public final int baseBotSpeed = 2; // Initial bot speed
-    private final float maxSpeedMultiplier = 3.0f; // Maximum speed multiplier (3x at end)
+    private final float maxSpeedMultiplier = 1.8f; // keep bots reasonable
+
+    // Attack handling
+    private boolean attackRequested = false;
+    private int attackCooldownCounter = 0;
+    private final int attackCooldownFrames = 10;
+    private final int attackWindupFrames = 6;
+    private int attackWindupCounter = 0;
+    private String queuedAttackDirection = null;
+    // Attack range is forward-only; player no longer needs to overlap bot
+    private final int attackRange = tileSize * 2; // two tiles reach
+    private Rectangle buildAttackHitbox(String direction) {
+        // Build a forward-only attack box so player cannot damage while overlapping
+        int baseX = player.worldX + player.solidArea.x;
+        int baseY = player.worldY + player.solidArea.y;
+        int boxWidth = player.solidArea.width;
+        int boxHeight = player.solidArea.height;
+
+        Rectangle hitbox;
+        switch (direction) {
+            case "left":
+                hitbox = new Rectangle(baseX - attackRange, baseY, attackRange, boxHeight);
+                break;
+            case "right":
+                hitbox = new Rectangle(baseX + boxWidth, baseY, attackRange, boxHeight);
+                break;
+            case "up":
+                hitbox = new Rectangle(baseX, baseY - attackRange, boxWidth, attackRange);
+                break;
+            case "down":
+                hitbox = new Rectangle(baseX, baseY + boxHeight, boxWidth, attackRange);
+                break;
+            default:
+                hitbox = new Rectangle(baseX + boxWidth, baseY, attackRange, boxHeight);
+                break;
+        }
+        return hitbox;
+    }
 
     // Constructor
     public gamePanel() {
@@ -105,6 +155,7 @@ public class gamePanel extends JPanel implements Runnable {
         this.setBackground(new Color(92, 201, 141));
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
+        this.addMouseListener(this);
         this.setFocusable(true);
 
         getPlayerImage();
@@ -123,6 +174,7 @@ public class gamePanel extends JPanel implements Runnable {
         // --- 3. THIẾT LẬP TRẠNG THÁI BAN ĐẦU LÀ MENU ---
         gameState = titleState;
         gameStartTime = 0;
+        lastBotSpawnTime = System.currentTimeMillis();
 
     }
 
@@ -149,6 +201,75 @@ public class gamePanel extends JPanel implements Runnable {
         bots.add(new bot(this, tileSize * 10, tileSize * 10, bot.BotType.GREEN));
         bots.add(new bot(this, tileSize * 20, tileSize * 8, bot.BotType.PURPLE));
         bots.add(new bot(this, tileSize * 26, tileSize * 14, bot.BotType.YELLOW));
+    }
+
+    private void spawnBotAtRandomPosition() {
+        if (bots.size() >= maxBotsOnField) return;
+        int attempts = 30;
+        int spawnX = tileSize * 5;
+        int spawnY = tileSize * 5;
+
+        // Require some distance from player and avoid blocking tiles/other bots
+        int minDistanceSq = (tileSize * 4) * (tileSize * 4);
+
+        for (int i = 0; i < attempts; i++) {
+            int col = random.nextInt(Math.max(2, maxWorldCol - 3)) + 1;
+
+            // Find ground at this column: first solid tile from bottom
+            int groundRow = -1;
+            for (int r = maxWorldRow - 2; r >= 1; r--) {
+                int tileNum = tileM.mapTileNum[col][r];
+                if (tileM.tile[tileNum].collision) {
+                    groundRow = r;
+                    break;
+                }
+            }
+            if (groundRow <= 1) continue; // no ground found, skip
+
+            int row = groundRow - 1; // stand on top of ground
+            int tileNum = tileM.mapTileNum[col][row];
+            if (tileM.tile[tileNum].collision) continue; // space must be free to stand in
+
+            int candidateX = col * tileSize;
+            int candidateY = row * tileSize;
+
+            int dx = candidateX - player.worldX;
+            int dy = candidateY - player.worldY;
+            if (dx * dx + dy * dy <= minDistanceSq) continue;
+
+            // Keep spawns outside the current camera view (with small margin)
+            int cameraLeft = player.worldX - player.screenX - tileSize;
+            int cameraTop = player.worldY - player.screenY - tileSize;
+            int cameraRight = cameraLeft + width + tileSize * 2;
+            int cameraBottom = cameraTop + height + tileSize * 2;
+            if (candidateX > cameraLeft && candidateX < cameraRight &&
+                candidateY > cameraTop && candidateY < cameraBottom) {
+                continue;
+            }
+
+            Rectangle candidateBox = new Rectangle(candidateX + 8, candidateY + 16, 40, 40);
+            boolean overlaps = false;
+            for (bot other : bots) {
+                Rectangle otherBox = new Rectangle(
+                        other.worldX + other.solidArea.x,
+                        other.worldY + other.solidArea.y,
+                        other.solidArea.width,
+                        other.solidArea.height);
+                if (candidateBox.intersects(otherBox)) {
+                    overlaps = true;
+                    break;
+                }
+            }
+            if (overlaps) continue;
+
+            spawnX = candidateX;
+            spawnY = candidateY;
+            break;
+        }
+
+        bot.BotType[] types = bot.BotType.values();
+        bot.BotType type = types[random.nextInt(types.length)];
+        bots.add(new bot(this, spawnX, spawnY, type));
     }
 
     public void startGameThread() {
@@ -209,11 +330,38 @@ public class gamePanel extends JPanel implements Runnable {
             
             // Update bot speeds based on elapsed time (gradual increase)
             updateBotSpeeds();
-            
-            // Check win condition: survive for the required time
-            if (currentTimeElapsed >= survivalTimeSeconds && !gameWon) {
-                triggerGameWin();
+            // Spawn new bots periodically with dynamic interval
+            long now = System.currentTimeMillis();
+            long currentSpawnInterval = getCurrentSpawnIntervalMs();
+            if (now - lastBotSpawnTime >= currentSpawnInterval && bots.size() < maxBotsOnField) {
+                spawnBotAtRandomPosition();
+                lastBotSpawnTime = now;
             }
+
+            // Handle attack cooldown and queued input
+            if (attackCooldownCounter > 0) {
+                attackCooldownCounter--;
+            }
+
+            // Handle attack wind-up then resolve hit
+            if (attackRequested && attackCooldownCounter == 0 && attackWindupCounter == 0) {
+                queuedAttackDirection = player.direction;
+                attackWindupCounter = attackWindupFrames;
+                // Pre-swing visual hint
+                Rectangle telegraphHitbox = buildAttackHitbox(queuedAttackDirection);
+                attackEffects.add(new AttackEffect(telegraphHitbox, attackWindupFrames, true));
+            }
+            attackRequested = false;
+
+            if (attackWindupCounter > 0) {
+                attackWindupCounter--;
+                if (attackWindupCounter == 0 && queuedAttackDirection != null) {
+                    performAttack(queuedAttackDirection);
+                    attackCooldownCounter = attackCooldownFrames;
+                    queuedAttackDirection = null;
+                }
+            }
+
             player.update();
 
             for (bot b : bots) {
@@ -245,6 +393,7 @@ public class gamePanel extends JPanel implements Runnable {
                 effect.update();
                 return !effect.isAlive();
             });
+            attackEffects.removeIf(effect -> !effect.update());
 
             if (playerHp <= 0 && !gameOver) {
                 triggerGameOver();
@@ -287,12 +436,19 @@ public class gamePanel extends JPanel implements Runnable {
         }
     }
 
+    private long getCurrentSpawnIntervalMs() {
+        float progress = Math.min(1.0f, (float) currentTimeElapsed / spawnRampDurationSec);
+        return (long) (maxSpawnIntervalMs - (maxSpawnIntervalMs - minSpawnIntervalMs) * progress);
+    }
+
     private void restartGame() {
         playerHp = 3;
         playerInvincible = false;
         invincibleCounter = 0;
         player.setDefaultValue();
         spawnBots();
+        lastBotSpawnTime = System.currentTimeMillis();
+        botsKilled = 0;
         damageEffects.clear();
         gameOver = false;
         showGameOverMenu = false;
@@ -309,6 +465,42 @@ public class gamePanel extends JPanel implements Runnable {
 
         // Reset lại vào game luôn (hoặc về menu nếu muốn: gameState = titleState)
         gameState = playState;
+    }
+
+    public void queueAttack() {
+        attackRequested = true;
+    }
+
+    private void performAttack(String directionSnapshot) {
+        Rectangle hitbox = buildAttackHitbox(directionSnapshot);
+
+        // Add a brief flash effect for the attack area
+        attackEffects.add(new AttackEffect(hitbox, 8, false));
+
+        java.util.Iterator<bot> iterator = bots.iterator();
+        while (iterator.hasNext()) {
+            bot b = iterator.next();
+            Rectangle botHitbox = new Rectangle(
+                    b.worldX + b.solidArea.x,
+                    b.worldY + b.solidArea.y,
+                    b.solidArea.width,
+                    b.solidArea.height
+            );
+            if (hitbox.intersects(botHitbox)) {
+                boolean dead = b.applyDamage(1);
+                if (dead) {
+                    iterator.remove();
+                    botsKilled++;
+                    if (botsKilled >= killsToWin && !gameWon) {
+                        triggerGameWin();
+                    }
+                }
+                // Add a floating hit effect at the bot position (screen space)
+                int effectScreenX = b.worldX - player.worldX + player.screenX + b.solidArea.width / 2;
+                int effectScreenY = b.worldY - player.worldY + player.screenY;
+                damageEffects.add(new damageEffect(effectScreenX, effectScreenY, "+1", new Color(50, 200, 50)));
+            }
+        }
     }
 
     public void paintComponent(Graphics g) {
@@ -343,31 +535,33 @@ public class gamePanel extends JPanel implements Runnable {
             // 4. Vẽ Player
             player.draw(g2);
 
-            // 5. Vẽ Hiệu ứng damage
+            // 5. Vẽ hiệu ứng tấn công (flash vùng đánh)
+            for (AttackEffect effect : attackEffects) {
+                effect.draw(g2, player.worldX, player.worldY, player.screenX, player.screenY);
+            }
+
+            // 6. Vẽ Hiệu ứng damage
             for (damageEffect effect : damageEffects) {
                 effect.draw(g2);
             }
 
-            // 6. Vẽ Máu (HUD)
+            // 7. Vẽ Máu (HUD)
             drawPlayerLife(g2);
+
+            // 7b. Vẽ số bot đã tiêu diệt
+            drawKillCounter(g2);
             
-            // 7. Vẽ Timer (Survival Time)
-            drawSurvivalTimer(g2);
-
+            // 8. Vẽ đám mây trang trí (parallax theo camera)
             if (cloudImage != null) {
-                g2.drawImage(cloudImage, 50, 50, 100, 100, this);
-                g2.drawImage(cloudImage, 400, 70, 100, 80, this);
-                g2.drawImage(cloudImage, 700, 80, 120, 150, this);
-                g2.drawImage(cloudImage, 1000, 55, 150, 80, this);
-
+                drawClouds(g2);
             }
 
-            // 8. Vẽ Menu Game Over (Nếu thua)
+            // 9. Vẽ Menu Game Over (Nếu thua)
             if (showGameOverMenu) {
                 drawGameOverScreen(g2);
             }
             
-            // 9. Vẽ Menu Win (Nếu thắng)
+            // 10. Vẽ Menu Win (Nếu thắng)
             if (showWinMenu) {
                 drawWinScreen(g2);
             }
@@ -507,6 +701,143 @@ public class gamePanel extends JPanel implements Runnable {
             int targetWidth = g2.getFontMetrics().stringWidth(targetText);
             g2.setColor(new Color(255, 255, 255, 200));
             g2.drawString(targetText, width - targetWidth - 20, textY + 25);
+        }
+    }
+
+    private void drawKillCounter(Graphics2D g2) {
+        if (gameState != playState) return;
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 24f));
+        String text = "Killed: " + botsKilled + "/" + killsToWin;
+
+        int padding = 10;
+        int x = 10;
+        int y = 10 + tileSize + 20; // below hearts
+
+        int textWidth = g2.getFontMetrics().stringWidth(text);
+        int textHeight = g2.getFontMetrics().getHeight();
+
+        // Background for readability
+        g2.setColor(new Color(0, 0, 0, 140));
+        g2.fillRoundRect(x - padding, y - textHeight, textWidth + padding * 2, textHeight + padding / 2, 8, 8);
+
+        g2.setColor(Color.WHITE);
+        g2.drawString(text, x, y);
+    }
+
+    private void drawClouds(Graphics2D g2) {
+        // Simple parallax clouds that move with the camera
+        int camX = player.worldX - player.screenX;
+        int camY = player.worldY - player.screenY;
+        float parallax = 0.25f; // move slower than camera
+
+        int[][] clouds = new int[][] {
+                {50, 200, 120, 90},
+                {380, 220, 130, 100},
+                {720, 240, 160, 140},
+                {1040, 210, 180, 110}
+        };
+
+        int wrapW = width + 200;  // allow some overdraw for wrapping
+        int wrapH = height + 200;
+
+        for (int[] c : clouds) {
+            int baseX = c[0];
+            int baseY = c[1];
+            int w = c[2];
+            int h = c[3];
+
+            int drawX = baseX - (int)(camX * parallax);
+            int drawY = baseY - (int)(camY * parallax);
+
+            // Wrap horizontally/vertically so clouds stay present
+            drawX = ((drawX % wrapW) + wrapW) % wrapW - 100;
+            drawY = ((drawY % wrapH) + wrapH) % wrapH - 100;
+
+            g2.drawImage(cloudImage, drawX, drawY, w, h, this);
+        }
+    }
+
+    @Override
+    public void mouseClicked(MouseEvent e) { }
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+        if (e.getButton() == MouseEvent.BUTTON1 && gameState == playState && !gameOver && !gameWon) {
+            queueAttack();
+        }
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent e) { }
+
+    @Override
+    public void mouseEntered(MouseEvent e) { }
+
+    @Override
+    public void mouseExited(MouseEvent e) { }
+
+    /**
+     * Quick flash overlay to show the attack area.
+     */
+    private static class AttackEffect {
+        private final Rectangle hitboxWorld;
+        private int life;
+        private final boolean windup;
+
+        AttackEffect(Rectangle hitboxWorld, int lifeFrames, boolean windup) {
+            this.hitboxWorld = new Rectangle(hitboxWorld);
+            this.life = lifeFrames;
+            this.windup = windup;
+        }
+
+        /**
+         * @return false when effect has finished
+         */
+        boolean update() {
+            life--;
+            return life > 0;
+        }
+
+        void draw(Graphics2D g2, int playerWorldX, int playerWorldY, int playerScreenX, int playerScreenY) {
+            int screenX = hitboxWorld.x - playerWorldX + playerScreenX;
+            int screenY = hitboxWorld.y - playerWorldY + playerScreenY;
+            int alpha = windup
+                    ? Math.max(25, Math.min(160, life * 22))
+                    : Math.max(40, Math.min(200, life * 25)); // brighter and punchier
+
+            Composite old = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha / 255f));
+
+            // Vivid multi-layer flash; cooler palette for windup, hotter for impact
+            int arc = Math.min(hitboxWorld.width, hitboxWorld.height) / 3;
+
+            // Inner fill
+            g2.setColor(windup
+                    ? new Color(180, 220, 255, Math.min(200, alpha))
+                    : new Color(255, 235, 130, Math.min(220, alpha)));
+            g2.fillRoundRect(screenX, screenY, hitboxWorld.width, hitboxWorld.height, arc, arc);
+
+            // Middle stroke (hot)
+            g2.setColor(windup
+                    ? new Color(120, 180, 255, Math.min(210, alpha))
+                    : new Color(255, 120, 60, Math.min(230, alpha)));
+            g2.setStroke(new BasicStroke(windup ? 3f : 4f));
+            g2.drawRoundRect(screenX - 1, screenY - 1, hitboxWorld.width + 2, hitboxWorld.height + 2, arc + 4, arc + 4);
+
+            // Outer stroke (cool contrast)
+            g2.setColor(windup
+                    ? new Color(90, 200, 255, Math.min(170, alpha))
+                    : new Color(80, 180, 255, Math.min(180, alpha)));
+            g2.setStroke(new BasicStroke(windup ? 5f : 7f));
+            g2.drawRoundRect(screenX - 3, screenY - 3, hitboxWorld.width + 6, hitboxWorld.height + 6, arc + 10, arc + 10);
+
+            // Spark line accent
+            g2.setColor(new Color(255, 255, 255, Math.min(200, alpha)));
+            g2.setStroke(new BasicStroke(windup ? 1.5f : 2f));
+            g2.drawLine(screenX, screenY, screenX + hitboxWorld.width, screenY + hitboxWorld.height);
+            g2.drawLine(screenX + hitboxWorld.width, screenY, screenX, screenY + hitboxWorld.height);
+
+            g2.setComposite(old);
         }
     }
 }

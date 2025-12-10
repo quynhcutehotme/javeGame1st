@@ -11,12 +11,16 @@ public class damageEffect {
     private float alpha;
     
     public damageEffect(int x, int y, String text) {
+        this(x, y, text, Color.RED);
+    }
+
+    public damageEffect(int x, int y, String text, Color color) {
         this.x = x;
         this.y = y;
         this.text = text;
         this.maxLife = 60; // frames to display
         this.life = maxLife;
-        this.color = Color.RED;
+        this.color = color;
         this.alpha = 1.0f;
     }
     

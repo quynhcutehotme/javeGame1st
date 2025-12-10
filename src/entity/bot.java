@@ -11,8 +11,11 @@ public class bot extends entity {
     private BufferedImage sprite;
     private Color bodyColor;
     private Color outlineColor;
+    private int health = 2;
     private int aiCounter = 0;
     private int changeDirInterval = 60; // frames (1 second)
+    private int stuckCounter = 0;
+    private final int stuckThreshold = 15;
     
     // Bot type for different movement patterns
     public enum BotType {
@@ -192,7 +195,7 @@ public class bot extends entity {
         // 5. Apply sprint speed multiplier for yellow bots
         int currentSpeed = speed;
         if (botType == BotType.YELLOW && sprintCounter > 0 && !isPaused) {
-            currentSpeed = (int)(baseSpeed * 2.5f); // Sprint at 2.5x speed
+            currentSpeed = (int)Math.ceil(baseSpeed * 2.0f); // gentler sprint
         }
         
         // 6. Kiểm tra va chạm và di chuyển
@@ -200,6 +203,7 @@ public class bot extends entity {
         gp.cChecker.checkTile(this);
         
         if (!collisionOn && !isPaused) {
+            stuckCounter = 0;
             // Apply base movement
             switch (direction) {
                 case "up": worldY -= currentSpeed; break;
@@ -230,9 +234,15 @@ public class bot extends entity {
                 worldY = Math.max(0, Math.min(gp.maxWorldRow * gp.tileSize - solidArea.height, worldY));
             }
         } else if (collisionOn) {
+            stuckCounter++;
             // Khi va chạm, chuyển hướng ngẫu nhiên để không bị kẹt
             if (currentState != BotState.CHASE) {
                 patrolMovement(); 
+            }
+            // If stuck for too long, force flip to escape
+            if (stuckCounter >= stuckThreshold) {
+                flipDirection();
+                stuckCounter = 0;
             }
         }
         
@@ -480,6 +490,14 @@ public class bot extends entity {
         if (botHitbox.intersects(playerHitbox)) {
             gp.player.takeDamage(this); // Gây sát thương
         }
+    }
+
+    /**
+     * Apply damage to this bot. Returns true if the bot is dead and should be removed.
+     */
+    public boolean applyDamage(int damage) {
+        health -= damage;
+        return health <= 0;
     }
 
     // Phương thức draw (giữ nguyên)

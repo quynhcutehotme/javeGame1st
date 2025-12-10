@@ -128,8 +128,9 @@ public class UI {
 
         String[] lines = {
                 "Press W, A, S, D or Arrow Keys to move.",
+                "Button F or left-click to attack",
                 "Deliver the porridge to Chi Pheo while avoiding monsters.",
-                "Surviving for 15 seconds wins the game.",
+                "Killing 5 monsters to win the game.",
                 "Drop 3 bowls and the game ends."
         };
 

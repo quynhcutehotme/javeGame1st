@@ -73,6 +73,7 @@ public class keyHander implements KeyListener {
             if (code == KeyEvent.VK_SPACE) jumpPress = true;
             if (code == KeyEvent.VK_S) downPress = true;
             if (code == KeyEvent.VK_D) rightPress = true;
+            if (code == KeyEvent.VK_F) gp.queueAttack();
 
             // Hỗ trợ thêm phím mũi tên
             if (code == KeyEvent.VK_UP) upPress = true;
