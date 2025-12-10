@@ -57,6 +57,7 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     public java.util.List<bot> bots = new java.util.ArrayList<>();
     public java.util.List<damageEffect> damageEffects = new java.util.ArrayList<>();
     private final java.util.List<AttackEffect> attackEffects = new java.util.ArrayList<>();
+    private final java.util.List<DeathEffect> deathEffects = new java.util.ArrayList<>();
     private final Random random = new Random();
 
     // PLAYER SETTINGS
@@ -394,6 +395,7 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 return !effect.isAlive();
             });
             attackEffects.removeIf(effect -> !effect.update());
+            deathEffects.removeIf(effect -> !effect.update());
 
             if (playerHp <= 0 && !gameOver) {
                 triggerGameOver();
@@ -489,6 +491,7 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
             if (hitbox.intersects(botHitbox)) {
                 boolean dead = b.applyDamage(1);
                 if (dead) {
+                    deathEffects.add(new DeathEffect(b.worldX + b.solidArea.width / 2, b.worldY + b.solidArea.height / 2));
                     iterator.remove();
                     botsKilled++;
                     if (botsKilled >= killsToWin && !gameWon) {
@@ -540,28 +543,33 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 effect.draw(g2, player.worldX, player.worldY, player.screenX, player.screenY);
             }
 
-            // 6. Vẽ Hiệu ứng damage
+            // 6. Vẽ hiệu ứng hạ gục bot
+            for (DeathEffect effect : deathEffects) {
+                effect.draw(g2, player.worldX, player.worldY, player.screenX, player.screenY);
+            }
+
+            // 7. Vẽ Hiệu ứng damage
             for (damageEffect effect : damageEffects) {
                 effect.draw(g2);
             }
 
-            // 7. Vẽ Máu (HUD)
+            // 8. Vẽ Máu (HUD)
             drawPlayerLife(g2);
 
-            // 7b. Vẽ số bot đã tiêu diệt
+            // 8b. Vẽ số bot đã tiêu diệt
             drawKillCounter(g2);
             
-            // 8. Vẽ đám mây trang trí (parallax theo camera)
+            // 9. Vẽ đám mây trang trí (parallax theo camera)
             if (cloudImage != null) {
                 drawClouds(g2);
             }
 
-            // 9. Vẽ Menu Game Over (Nếu thua)
+            // 10. Vẽ Menu Game Over (Nếu thua)
             if (showGameOverMenu) {
                 drawGameOverScreen(g2);
             }
             
-            // 10. Vẽ Menu Win (Nếu thắng)
+            // 11. Vẽ Menu Win (Nếu thắng)
             if (showWinMenu) {
                 drawWinScreen(g2);
             }
@@ -836,6 +844,60 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
             g2.setStroke(new BasicStroke(windup ? 1.5f : 2f));
             g2.drawLine(screenX, screenY, screenX + hitboxWorld.width, screenY + hitboxWorld.height);
             g2.drawLine(screenX + hitboxWorld.width, screenY, screenX, screenY + hitboxWorld.height);
+
+            g2.setComposite(old);
+        }
+    }
+
+    /**
+     * Simple radial burst when a bot is eliminated.
+     */
+    private static class DeathEffect {
+        private final int worldX;
+        private final int worldY;
+        private int life = 18; // longer for visibility
+
+        DeathEffect(int worldX, int worldY) {
+            this.worldX = worldX;
+            this.worldY = worldY;
+        }
+
+        boolean update() {
+            life--;
+            return life > 0;
+        }
+
+        void draw(Graphics2D g2, int playerWorldX, int playerWorldY, int playerScreenX, int playerScreenY) {
+            int screenX = worldX - playerWorldX + playerScreenX;
+            int screenY = worldY - playerWorldY + playerScreenY;
+
+            float progress = 1f - (life / 18f);
+            int radius = (int)(10 + 44 * progress);
+            int alpha = Math.max(80, 230 - (int)(progress * 230));
+
+            Composite old = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha / 255f));
+
+            // Outer ring (thicker)
+            g2.setColor(new Color(255, 70, 70, alpha));
+            g2.setStroke(new BasicStroke(5f));
+            g2.drawOval(screenX - radius, screenY - radius, radius * 2, radius * 2);
+
+            // Inner ring
+            g2.setColor(new Color(255, 140, 140, Math.max(90, alpha - 30)));
+            g2.setStroke(new BasicStroke(3f));
+            g2.drawOval(screenX - radius / 2, screenY - radius / 2, radius, radius);
+
+            // Core fill glow
+            int coreSize = 18;
+            g2.setColor(new Color(255, 200, 200, Math.min(240, alpha + 40)));
+            g2.fillOval(screenX - coreSize / 2, screenY - coreSize / 2, coreSize, coreSize);
+
+            // Cross flash
+            g2.setColor(new Color(255, 255, 255, Math.min(220, alpha)));
+            g2.setStroke(new BasicStroke(2.5f));
+            g2.drawLine(screenX - radius, screenY, screenX + radius, screenY);
+            g2.drawLine(screenX, screenY - radius, screenX, screenY + radius);
 
             g2.setComposite(old);
         }
