@@ -65,7 +65,10 @@ public class keyHander implements KeyListener {
             }
         }
 
-        // --- TRƯỜNG HỢP 3: ĐANG CHƠI GAME (Code cũ của bạn) ---
+        // -
+        //
+        //
+        // -- TRƯỜNG HỢP 3: ĐANG CHƠI GAME (Code cũ của bạn) ---
         else if (gp.gameState == gp.playState) {
 
             if (code == KeyEvent.VK_W) upPress = true;

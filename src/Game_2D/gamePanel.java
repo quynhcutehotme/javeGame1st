@@ -1,5 +1,6 @@
 package Game_2D;
 
+import entity.ChiPheo;
 import entity.player;
 import tile.tileManager;
 import entity.bot;
@@ -11,6 +12,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 
 public class gamePanel extends JPanel implements Runnable {
+    public ChiPheo chiPheo;
     Image cloudImage;
     BackgroundMusic bgMusic;
     BackgroundMusic loseMusic;
@@ -65,7 +67,7 @@ public class gamePanel extends JPanel implements Runnable {
     public gamePanel() {
         bgMusic = new BackgroundMusic("/music/MusicBackground.wav");
         loseMusic = new BackgroundMusic("/music/over_ending.wav");
-        bgMusic.playLoop();
+//        bgMusic.playLoop();
         try {
             backgroundImage = ImageIO.read(getClass().getResourceAsStream("/res/map/background.png"));
         } catch (Exception e) {
@@ -77,6 +79,12 @@ public class gamePanel extends JPanel implements Runnable {
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
         this.setFocusable(true);
+
+        this.addMouseListener(new mouseHandler(this));
+
+        gameState = titleState;
+
+
 
         getPlayerImage();
        spawnBots();
@@ -91,7 +99,7 @@ public class gamePanel extends JPanel implements Runnable {
             e.printStackTrace();
         }
 
-        // --- 3. THIẾT LẬP TRẠNG THÁI BAN ĐẦU LÀ MENU ---
+
         gameState = titleState;
 
     }
@@ -118,6 +126,7 @@ public class gamePanel extends JPanel implements Runnable {
         bots.add(new bot(this, tileSize * 10, tileSize * 10));
         bots.add(new bot(this, tileSize * 20, tileSize * 8));
         bots.add(new bot(this, tileSize * 26, tileSize * 14));
+        chiPheo = new ChiPheo(this, tileSize * 6, tileSize * 13);
     }
 
     public void startGameThread() {
@@ -257,6 +266,11 @@ public class gamePanel extends JPanel implements Runnable {
             // 4. Vẽ Player
             player.draw(g2);
 
+            // vẻ chí phèo
+            if (chiPheo != null) {
+                chiPheo.draw(g2);
+            }
+
             // 5. Vẽ Hiệu ứng damage
             for (damageEffect effect : damageEffects) {
                 effect.draw(g2);
@@ -278,14 +292,6 @@ public class gamePanel extends JPanel implements Runnable {
                 drawGameOverScreen(g2);
             }
         }
-//Check collusion
-//        g2.setColor(Color.RED); // màu đỏ để dễ nhìn
-//        g2.drawRect(
-//                player.screenX + player.solidArea.x,
-//                player.screenY + player.solidArea.y,
-//                player.solidArea.width,
-//                player.solidArea.height
-//        );
 
         g2.dispose();
     }

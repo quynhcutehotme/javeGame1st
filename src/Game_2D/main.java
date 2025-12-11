@@ -18,7 +18,7 @@ public class main {
 
         window.setLocationRelativeTo(null);
 
-        window.setTitle("My game");
+        window.setTitle("Bát cháo hành");
         window.setVisible(true);
 
         gPanel.startGameThread();
