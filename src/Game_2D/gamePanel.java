@@ -34,7 +34,7 @@ public class gamePanel extends JPanel implements Runnable {
     public BufferedImage backgroundImage;
     int FPS = 60;
 
-    // --- 1. THÊM UI VÀ TRẠNG THÁI GAME ---
+
     public UI ui = new UI(this); // Khởi tạo giao diện Menu
     public int gameState;
     public final int titleState = 0; // Trạng thái ở Lobby
@@ -43,7 +43,7 @@ public class gamePanel extends JPanel implements Runnable {
 
     tileManager tileM = new tileManager(this);
 
-    // --- 2. SỬA LẠI KEYHANDLER (QUAN TRỌNG: Phải có 'this') ---
+
     public keyHander keyH = new keyHander(this);
 
     public collisionChecker cChecker = new collisionChecker(this);
@@ -67,13 +67,18 @@ public class gamePanel extends JPanel implements Runnable {
     public gamePanel() {
         bgMusic = new BackgroundMusic("/music/MusicBackground.wav");
         loseMusic = new BackgroundMusic("/music/over_ending.wav");
-//        bgMusic.playLoop();
+        bgMusic.playLoop();
         try {
-            backgroundImage = ImageIO.read(getClass().getResourceAsStream("/res/map/background.png"));
+            backgroundImage = ImageIO.read(
+                    getClass().getResourceAsStream("/res/ui/chongchay.png")
+            );
+            if (backgroundImage == null){
+                System.out.println("lỗi nền");
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
-
+        this.setOpaque(true);
         this.setPreferredSize(new Dimension(width, height));
         this.setBackground(new Color(37, 150, 190));
         this.setDoubleBuffered(true);
@@ -83,7 +88,6 @@ public class gamePanel extends JPanel implements Runnable {
         this.addMouseListener(new mouseHandler(this));
 
         gameState = titleState;
-
 
 
         getPlayerImage();
@@ -240,16 +244,20 @@ public class gamePanel extends JPanel implements Runnable {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
 
-        // --- 5. LOGIC VẼ MÀN HÌNH ---
+        if (backgroundImage != null) {
+            g2.drawImage(backgroundImage, 0, 0, width, height, null);
+        } else {
+            g2.setColor(Color.BLACK);
+            g2.fillRect(0, 0, width, height);
+        }
 
-        // A. NẾU ĐANG Ở MENU (Lobby/Guide)
         if (gameState == titleState || gameState == guideState) {
             ui.draw(g2); // Chỉ vẽ UI Menu
         }
 
         // B. NẾU ĐANG CHƠI
         else {
-            // 1. Vẽ Background
+
             if (backgroundImage != null) {
                 g2.drawImage(backgroundImage, 0, 0, width, height, null);
             } else {
@@ -298,7 +306,7 @@ public class gamePanel extends JPanel implements Runnable {
         g2.dispose();
     }
 
-    // Tách hàm vẽ máu cho gọn
+
     public void drawPlayerLife(Graphics2D g2) {
         if (heartIcon != null) {
             int x = 10;
@@ -317,31 +325,29 @@ public class gamePanel extends JPanel implements Runnable {
     }
 
     public void drawGameOverScreen(Graphics2D g2) {
-        // 1. Làm tối màn hình
         g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, width, height);
 
-        // 2. --- SỬA: TĂNG KÍCH THƯỚC KHUNG MENU ---
         int menuWidth = 400;  // Cũ là 400 -> Tăng lên 600
         int menuHeight = 250; // Cũ là 250 -> Tăng lên 350
         int menuX = (width - menuWidth) / 2;
         int menuY = (height - menuHeight) / 2;
 
-        // Vẽ nền bảng
+
         g2.setColor(new Color(255, 255, 255, 230));
         g2.fillRoundRect(menuX, menuY, menuWidth, menuHeight, 30, 30); // Bo góc tròn hơn (30)
         g2.setColor(Color.BLACK);
         g2.setStroke(new BasicStroke(3)); // Viền dày hơn chút
         g2.drawRoundRect(menuX, menuY, menuWidth, menuHeight, 30, 30);
 
-        // 3. Vẽ chữ "YOU LOSE" (Cho to hơn nữa)
+
         g2.setFont(g2.getFont().deriveFont(Font.BOLD, 60f)); // Font size 60
         g2.setColor(Color.RED);
         String loseText = "YOU LOSE";
         int textWidth = g2.getFontMetrics().stringWidth(loseText);
         g2.drawString(loseText, menuX + (menuWidth - textWidth) / 2, menuY + 130);
 
-        // 4. Vẽ dòng hướng dẫn
+
         g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 20f));
         g2.setColor(Color.BLACK);
         String instructionText = "Press R to Restart or ESC to Exit";

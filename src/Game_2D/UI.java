@@ -30,7 +30,7 @@ public class UI {
         try {
 
             if (getClass().getResourceAsStream("/res/ui/background.png") != null) {
-                titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/backgr.png"));
+                titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/background.png"));
             } else {
                 System.err.println("!!! THIẾU ẢNH NỀN: /res/ui/background.png");
             }

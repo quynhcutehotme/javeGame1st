@@ -28,10 +28,10 @@ public class tileManager {
     }
 
     public void getTileImage() {
-        setup(0,"grass2",false);
+        setup(0,"grass2",true );
         setup(1,"sky",false);
         setup(2,"stone",true);
-        setup(3,"solid",false); //đất
+        setup(3,"solid",true); //đất
         setup(4,"wood",true);
         setup(5,"grassCollision",true); //cỏ C
         setup(6,"solidCollision",true); //đát c
