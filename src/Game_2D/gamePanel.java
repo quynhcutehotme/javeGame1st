@@ -126,7 +126,8 @@ public class gamePanel extends JPanel implements Runnable {
         bots.add(new bot(this, tileSize * 10, tileSize * 10));
         bots.add(new bot(this, tileSize * 20, tileSize * 8));
         bots.add(new bot(this, tileSize * 26, tileSize * 14));
-        chiPheo = new ChiPheo(this, tileSize * 6, tileSize * 13);
+        //vị trí chí phèo
+        chiPheo = new ChiPheo(this, tileSize * 17, tileSize * 11+15);
     }
 
     public void startGameThread() {
@@ -170,6 +171,7 @@ public class gamePanel extends JPanel implements Runnable {
         // Nếu đang chơi (PlayState) thì mới chạy logic dưới đây
         if (gameState == playState) {
             player.update();
+            if (chiPheo != null) chiPheo.update();
 
             for (bot b : bots) {
                 b.updateAI(player.worldX, player.worldY);

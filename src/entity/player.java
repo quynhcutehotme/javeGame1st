@@ -49,7 +49,7 @@ public class player extends entity{
 
     //xuất hiện trên máp
     public void setDefaultValue(){
-        worldX= gp.tileSize*10;
+        worldX= gp.tileSize*15;
         worldY=gp.tileSize*11;
         speed = 4;
         direction ="right";
