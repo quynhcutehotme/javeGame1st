@@ -96,7 +96,7 @@ public class UI {
     public void drawGuideScreen() {
         if (guideBackground == null) { // chỉ load 1 lần
             try {
-                guideBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/guildBackGr.png"));
+                guideBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/guildBackground.png"));
             } catch (IOException e) {
                 e.printStackTrace();
             }
