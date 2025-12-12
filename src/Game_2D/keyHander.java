@@ -5,14 +5,25 @@ import java.awt.event.KeyListener;
 
 public class keyHander implements KeyListener {
 
-    // 1. KHAI BÁO BIẾN gamePanel ĐỂ KẾT NỐI
     gamePanel gp;
 
+    // Movement keys
     public boolean upPress, downPress, leftPress, rightPress;
-    public boolean restartPress, exitPress;
+    
+    // Jump key
     public boolean jumpPress;
+    public boolean jumpHeld = false; // Track if jump is being held
+    
+    // Action keys
+    public boolean attackPress;
+    
+    // Menu/System keys
+    public boolean restartPress, exitPress;
+    public boolean enterPress;
+    
+    // Debug key (optional)
+    public boolean debugPress = false;
 
-    // 2. CONSTRUCTOR (Quan trọng: Nhận gp từ Main)
     public keyHander(gamePanel gp) {
         this.gp = gp;
     }
@@ -25,65 +36,119 @@ public class keyHander implements KeyListener {
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
 
-        // --- TRƯỜNG HỢP 1: ĐANG Ở MENU (LOBBY) ---
-        if (gp.gameState == gp.titleState) {
-
-            // Dùng W hoặc Mũi tên Lên để chọn lên
+        // --- TITLE STATE (MENU) ---
+        if (gp.getCurrentGameState() == gp.titleState) {
             if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
                 gp.ui.commandNum--;
                 if (gp.ui.commandNum < 0) {
-                    gp.ui.commandNum = 2; // Quay vòng xuống dưới cùng
+                    gp.ui.commandNum = 2;
                 }
             }
-
-            // Dùng S hoặc Mũi tên Xuống để chọn xuống
             if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
                 gp.ui.commandNum++;
                 if (gp.ui.commandNum > 2) {
-                    gp.ui.commandNum = 0; // Quay vòng lên trên cùng
+                    gp.ui.commandNum = 0;
                 }
             }
-
-            // Dùng ENTER để chọn
             if (code == KeyEvent.VK_ENTER) {
-                if (gp.ui.commandNum == 0) { // Nút START
-                    gp.gameState = gp.playState; // Vào game
+                enterPress = true;
+                if (gp.ui.commandNum == 0) {
+                    gp.setGameState(gp.playState);
                 }
-                if (gp.ui.commandNum == 1) { // Nút GUIDE
-                    gp.gameState = gp.guideState; // Vào hướng dẫn
+                if (gp.ui.commandNum == 1) {
+                    gp.setGameState(gp.guideState);
                 }
-                if (gp.ui.commandNum == 2) { // Nút QUIT
-                    System.exit(0); // Thoát game
+                if (gp.ui.commandNum == 2) {
+                    System.exit(0);
                 }
+            }
+            // Allow ESC to exit from title screen too
+            if (code == KeyEvent.VK_ESCAPE) {
+                System.exit(0);
             }
         }
 
-        // --- TRƯỜNG HỢP 2: ĐANG XEM GUIDE ---
-        else if (gp.gameState == gp.guideState) {
-            if (code == KeyEvent.VK_ENTER || code == KeyEvent.VK_ESCAPE) {
-                gp.gameState = gp.titleState; // Quay về menu chính
+        // --- GUIDE STATE ---
+        else if (gp.getCurrentGameState() == gp.guideState) {
+            if (code == KeyEvent.VK_ENTER || code == KeyEvent.VK_ESCAPE || code == KeyEvent.VK_SPACE) {
+                gp.setGameState(gp.titleState);
+                gp.ui.commandNum = 0; // Reset to first option
             }
         }
 
-        // --- TRƯỜNG HỢP 3: ĐANG CHƠI GAME (Code cũ của bạn) ---
-        else if (gp.gameState == gp.playState) {
-
-            if (code == KeyEvent.VK_W) upPress = true;
-            if (code == KeyEvent.VK_A) leftPress = true;
-            if (code == KeyEvent.VK_SPACE) jumpPress = true;
-            if (code == KeyEvent.VK_S) downPress = true;
-            if (code == KeyEvent.VK_D) rightPress = true;
-            if (code == KeyEvent.VK_F) gp.queueAttack();
-
-            // Hỗ trợ thêm phím mũi tên
-            if (code == KeyEvent.VK_UP) upPress = true;
-            if (code == KeyEvent.VK_LEFT) leftPress = true;
-            if (code == KeyEvent.VK_DOWN) downPress = true;
-            if (code == KeyEvent.VK_RIGHT) rightPress = true;
-
-            // Phím chức năng
-            if (code == KeyEvent.VK_R) restartPress = true;
-            if (code == KeyEvent.VK_ESCAPE) exitPress = true;
+        // --- PLAY STATE ---
+        else if (gp.getCurrentGameState() == gp.playState) {
+            // MOVEMENT KEYS
+            if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
+                upPress = true;
+            }
+            if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT) {
+                leftPress = true;
+            }
+            if (code == KeyEvent.VK_S || code == KeyEvent.VK_DOWN) {
+                downPress = true;
+            }
+            if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) {
+                rightPress = true;
+            }
+            
+            // JUMP KEYS - Multiple jump controls
+            if (code == KeyEvent.VK_SPACE || code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
+                if (!jumpHeld) { // Only register jump once per press
+                    jumpPress = true;
+                    jumpHeld = true;
+                }
+            }
+            
+            // ATTACK KEY (Keep for backward compatibility or remove if not needed)
+            if (code == KeyEvent.VK_F || code == KeyEvent.VK_J) {
+                attackPress = true;
+                gp.queueAttack();
+            }
+            
+            // MOUSE CLICK ALSO TRIGGERS ATTACK (if you want to keep both)
+            // Attack on mouse is handled separately in MouseListener
+            
+            // SYSTEM KEYS
+            if (code == KeyEvent.VK_R) {
+                restartPress = true;
+                gp.performRestart();
+            }
+            if (code == KeyEvent.VK_ESCAPE) {
+                exitPress = true;
+                System.exit(0);
+            }
+            if (code == KeyEvent.VK_ENTER) {
+                enterPress = true;
+            }
+            
+            // DEBUG KEY (optional)
+            if (code == KeyEvent.VK_F3) {
+                debugPress = !debugPress;
+            }
+            
+            // QUICK RESTART (for testing)
+            if (code == KeyEvent.VK_F5) {
+                gp.performRestart();
+            }
+        }
+        
+        // --- HANDLE GAME OVER/WIN STATES THROUGH MENU VISIBILITY ---
+        // Kiểm tra xem có menu nào đang hiển thị không
+        else if (gp.isGameOverMenuVisible() || gp.isWinMenuVisible()) {
+            if (code == KeyEvent.VK_R) {
+                restartPress = true;
+                gp.performRestart();
+            }
+            if (code == KeyEvent.VK_ESCAPE) {
+                exitPress = true;
+                System.exit(0);
+            }
+            if (code == KeyEvent.VK_ENTER) {
+                enterPress = true;
+                // Could go back to main menu
+                gp.setGameState(gp.titleState);
+            }
         }
     }
 
@@ -91,12 +156,9 @@ public class keyHander implements KeyListener {
     public void keyReleased(KeyEvent e) {
         int code = e.getKeyCode();
 
-        // Chỉ cần xử lý nhả phím khi đang chơi
+        // MOVEMENT KEYS
         if (code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
             upPress = false;
-        }
-        if (code == KeyEvent.VK_SPACE) {
-            jumpPress = false;
         }
         if (code == KeyEvent.VK_A || code == KeyEvent.VK_LEFT) {
             leftPress = false;
@@ -107,11 +169,56 @@ public class keyHander implements KeyListener {
         if (code == KeyEvent.VK_D || code == KeyEvent.VK_RIGHT) {
             rightPress = false;
         }
+        
+        // JUMP KEYS
+        if (code == KeyEvent.VK_SPACE || code == KeyEvent.VK_W || code == KeyEvent.VK_UP) {
+            jumpPress = false;
+            jumpHeld = false; // Reset held state
+        }
+        
+        // ATTACK KEYS
+        if (code == KeyEvent.VK_F || code == KeyEvent.VK_J) {
+            attackPress = false;
+        }
+        
+        // SYSTEM KEYS
         if (code == KeyEvent.VK_R) {
             restartPress = false;
         }
         if (code == KeyEvent.VK_ESCAPE) {
             exitPress = false;
         }
+        if (code == KeyEvent.VK_ENTER) {
+            enterPress = false;
+        }
+    }
+    
+    // Helper method to reset all keys (useful when changing game states)
+    public void resetAllKeys() {
+        upPress = false;
+        downPress = false;
+        leftPress = false;
+        rightPress = false;
+        jumpPress = false;
+        jumpHeld = false;
+        attackPress = false;
+        restartPress = false;
+        exitPress = false;
+        enterPress = false;
+    }
+    
+    // Check if any movement key is pressed
+    public boolean isAnyMovementKeyPressed() {
+        return upPress || downPress || leftPress || rightPress;
+    }
+    
+    // Check if player is trying to move horizontally
+    public boolean isMovingHorizontally() {
+        return leftPress || rightPress;
+    }
+    
+    // Check if player is trying to move vertically (not including jump)
+    public boolean isMovingVertically() {
+        return upPress || downPress;
     }
 }

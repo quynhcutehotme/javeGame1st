@@ -9,21 +9,26 @@ public class UI {
 
     gamePanel gp;
     Graphics2D g2;
-    Font arial_40;
 
-    // 1. KHAI BÁO BIẾN ẢNH NỀN
+
+
+
+    public Rectangle startButtonBounds;
+    public Rectangle guideButtonBounds;
+    public Rectangle quitButtonBounds;
+
     BufferedImage titleBackground;
     BufferedImage btnStart, btnGuide, btnQuit;
+    BufferedImage guideBackground;
 
     public int commandNum = 0;
 
     public UI(gamePanel gp) {
         this.gp = gp;
-        arial_40 = new Font("Times New Roman", Font.BOLD, 40);
+
 
         try {
-            // --- 2. LOAD ẢNH NỀN VÀO BỘ NHỚ ---
-            // (Lưu ý: Nếu không tìm thấy ảnh, nó sẽ in lỗi ra console nhưng game vẫn chạy nền đen)
+
             if (getClass().getResourceAsStream("/res/ui/background.png") != null) {
                 titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/background.png"));
             } else {
@@ -37,8 +42,8 @@ public class UI {
             if (getClass().getResourceAsStream("/res/ui/guide_button.png") != null)
                 btnGuide = ImageIO.read(getClass().getResourceAsStream("/res/ui/guide_button.png"));
 
-            if (getClass().getResourceAsStream("/res/ui/quit_button.png") != null) {
-                btnQuit = ImageIO.read(getClass().getResourceAsStream("/res/ui/start_button.png"));
+            if (getClass().getResourceAsStream("/res/ui/3.png") != null) {
+                btnQuit = ImageIO.read(getClass().getResourceAsStream("/res/ui/3.png"));
             } else {
                 btnQuit = btnStart; // Dùng tạm nếu thiếu
             }
@@ -117,6 +122,7 @@ public class UI {
         g2.fillRect(0, 0, gp.width, gp.height);
 
         g2.setColor(Color.white);
+        Font arial_40 = null;
         g2.setFont(arial_40);
 
         String text = "GUIDE";
@@ -128,7 +134,7 @@ public class UI {
 
         String[] lines = {
                 "Press W, A, S, D or Arrow Keys to move.",
-                "Button F or left-click to attack",
+                "Jump on monsters to defeat them.",
                 "Deliver the porridge to Chi Pheo while avoiding monsters.",
                 "Killing 5 monsters to win the game.",
                 "Drop 3 bowls and the game ends."

@@ -1,8 +1,6 @@
 package Game_2D;
 
 import entity.entity;
-import entity.player;
-import entity.bot;
 
 public class collisionChecker {
     gamePanel gp;
@@ -190,5 +188,5 @@ public class collisionChecker {
 
         return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
     }
-
 }
+

@@ -17,7 +17,7 @@ public class tileManager {
     public tileManager(Game_2D.gamePanel gp) {
         this.gp = gp;
 
-        tile = new tile[7];
+        tile = new tile[9];
         mapTileNum = new int[gp.maxWorldCol][gp.maxWorldRow];
 
         getTileImage();
@@ -26,11 +26,15 @@ public class tileManager {
     }
 
     public void getTileImage() {
-        setup(0,"grass2",false);
+        setup(0,"grass2",true );
         setup(1,"sky",false);
         setup(2,"stone",true);
-        setup(3,"solid",false); //đất
+        setup(3,"solid",true); //đất
         setup(4,"wood",true);
+        setup(5,"grassCollision",true); //cỏ C
+        setup(6,"solidCollision",true); //đát c
+        setup(7,"skyCollision",true);
+
     }
 
 

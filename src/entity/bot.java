@@ -11,11 +11,13 @@ public class bot extends entity {
     private BufferedImage sprite;
     private Color bodyColor;
     private Color outlineColor;
-    private int health = 2;
+    private int health = 1;
     private int aiCounter = 0;
     private int changeDirInterval = 60; // frames (1 second)
     private int stuckCounter = 0;
     private final int stuckThreshold = 15;
+    public boolean isMovingRight = false;
+
     
     // Bot type for different movement patterns
     public enum BotType {
@@ -52,16 +54,14 @@ public class bot extends entity {
     private String lastAvoidanceDirection = null; // Smooth avoidance direction
     
     // Pattern-specific variables
-
-
     private int zigZagCounter = 0; // For green bots
-
     private int sineWaveCounter = 0; // For purple bots
     private int pauseCounter = 0; // For yellow bots
     private boolean isPaused = false;
     private int pauseDuration = 0;
     private int sprintCounter = 0;
-    public int baseSpeed = 1; // Store base speed for yellow bot sprint calculation
+    public int baseSpeed = 2; // Store base speed for yellow bot sprint calculation
+    
 
 
     public bot(gamePanel gp, int worldX, int worldY, BotType type) {
@@ -73,7 +73,7 @@ public class bot extends entity {
         this.worldX = worldX;
         this.worldY = worldY;
         this.speed = 2;
-        this.baseSpeed = 1;
+        this.baseSpeed = 2;
         this.direction = "left";
         solidArea = new Rectangle();
         solidArea.x = 8;
@@ -103,6 +103,18 @@ public class bot extends entity {
         // Keep sprite null to use vector draw; can be loaded if you prefer images
         sprite = null;
     }
+
+    /**
+     * Convenience factory: create a bot at camera/screen coordinates (no randomness).
+     * Callers can use `bot.createAtScreen(gp, screenX, screenY, type)` to spawn
+     * a bot relative to the current camera view.
+     */
+    public static bot createAtScreen(gamePanel gp, int screenX, int screenY, BotType type) {
+        int worldX = gp.player.worldX - gp.player.screenX + screenX;
+        int worldY = gp.player.worldY - gp.player.screenY + screenY;
+        return new bot(gp, worldX, worldY, type);
+    }
+    
 
     private void loadSprite() { /* no-op; using vector drawing now */ }
     
@@ -140,8 +152,8 @@ public class bot extends entity {
                 if (alertCounter >= alertDuration) {
                     currentState = BotState.CHASE;
                 }
-                // Hướng về phía người chơi
-                setDirectionToward(dx, dy);
+                // Hướng về phía người chơi (chỉ theo trục X để không bay lên trời)
+                setDirectionTowardHorizontal(dx);
                 break;
 
             case CHASE:
@@ -152,10 +164,11 @@ public class bot extends entity {
                     searchCounter = 0;
                     break;
                 }
-                setDirectionToward(dx, dy);
-                // Add randomness to chase direction (20% chance to flip)
+                // Chase only horizontally (avoid vertical movement)
+                setDirectionTowardHorizontal(dx);
+                // Add occasional horizontal flip to vary behavior
                 if (random.nextDouble() < randomFlipChance) {
-                    flipDirection();
+                    flipHorizontal();
                 }
                 break;
                 
@@ -166,7 +179,8 @@ public class bot extends entity {
                     break;
                 }
                 // Di chuyển về vị trí cuối cùng của player
-                setDirectionToward(lastPlayerX - worldX, lastPlayerY - worldY);
+                // Move toward last known player X only (horizontal search)
+                setDirectionTowardHorizontal(lastPlayerX - worldX);
                 break;
         }
 
@@ -198,15 +212,12 @@ public class bot extends entity {
         // 5. Apply sprint speed multiplier for yellow bots
         int currentSpeed = speed;
         if (botType == BotType.YELLOW && sprintCounter > 0 && !isPaused) {
-            currentSpeed = (int)Math.ceil(baseSpeed * 2.0f); // sprint is 2x base speed
+            currentSpeed = (int)Math.ceil(baseSpeed * 2.0f); // gentler sprint
         }
         
         // 6. Kiểm tra va chạm và di chuyển
         collisionOn = false;
         gp.cChecker.checkTile(this);
-        
-        // Also check collision with other bots
-        checkBotCollision();
         
         if (!collisionOn && !isPaused) {
             stuckCounter = 0;
@@ -252,13 +263,6 @@ public class bot extends entity {
             }
         }
         
-        // Allow avoidClumping to separate overlapping bots after stuck logic
-        // Reset collisionOn for bots with other bots so they can be separated
-        if (collisionOn && currentState != BotState.CHASE) {
-            // Don't let bot collision block movement forever - allow it to be pushed by avoidClumping
-            stuckCounter = 0;
-        }
-        
         // 6. Kiểm tra va chạm với người chơi và gây sát thương
         checkPlayerCollision();
     }
@@ -277,6 +281,24 @@ public class bot extends entity {
             direction = (dy > 0) ? "down" : "up";
         }
     }
+
+    /**
+     * Set direction only horizontally (left/right) based on dx.
+     * Useful to prevent bots from trying to fly vertically when chasing.
+     */
+    private void setDirectionTowardHorizontal(int dx) {
+        direction = (dx > 0) ? "right" : "left";
+    }
+
+    /**
+     * Flip only horizontally (left <-> right). Keeps vertical directions unchanged
+     * only when appropriate callers use this helper.
+     */
+    private void flipHorizontal() {
+        if ("left".equals(direction)) direction = "right";
+        else if ("right".equals(direction)) direction = "left";
+        else direction = "left"; // default to left if currently up/down
+    }
     
     private void flipDirection() {
         switch (direction) {
@@ -288,57 +310,66 @@ public class bot extends entity {
     }
     
     /**
-     * Prevent bot-to-bot collision and overlap completely.
-     * Checks actual hitbox collisions and separates overlapping bots.
+     * Lightweight horizontal collision avoidance for side-scrolling game.
+     * Only checks horizontal collisions (same Y-level), applies 50% nudge to each bot.
+     * Uses squared distance checks for performance (avoids sqrt until needed).
      * 
      * @param allBots List of all bots to check against
      */
     public static void avoidClumping(java.util.List<bot> allBots) {
         if (allBots.size() < 2) return; // Need at least 2 bots
         
-        // Check each pair of bots for collision
+        final int AVOIDANCE_DISTANCE = 32; // 2 tiles (16px * 2)
+        final int AVOIDANCE_DISTANCE_SQ = AVOIDANCE_DISTANCE * AVOIDANCE_DISTANCE;
+        final int Y_TOLERANCE = 16; // Allow 1 tile vertical difference (same ground level)
+        final int Y_TOLERANCE_SQ = Y_TOLERANCE * Y_TOLERANCE;
+        final int MAX_NUDGE = 8; // Maximum nudge per frame to prevent jerky movement
+        
+        // Process each pair of bots once (O(n²) but lightweight)
         for (int i = 0; i < allBots.size(); i++) {
             bot botA = allBots.get(i);
-            Rectangle hitboxA = new Rectangle(
-                botA.worldX + botA.solidArea.x,
-                botA.worldY + botA.solidArea.y,
-                botA.solidArea.width,
-                botA.solidArea.height
-            );
             
             for (int j = i + 1; j < allBots.size(); j++) {
                 bot botB = allBots.get(j);
-                Rectangle hitboxB = new Rectangle(
-                    botB.worldX + botB.solidArea.x,
-                    botB.worldY + botB.solidArea.y,
-                    botB.solidArea.width,
-                    botB.solidArea.height
-                );
                 
-                // Check if bots are overlapping
-                if (hitboxA.intersects(hitboxB)) {
-                    // Separate the bots by pushing them apart
-                    int dx = botB.worldX - botA.worldX;
-                    int dy = botB.worldY - botA.worldY;
+                // Calculate horizontal and vertical differences
+                int dx = botB.worldX - botA.worldX;
+                int dy = botB.worldY - botA.worldY;
+                
+                // Use squared distance for performance (avoid sqrt)
+                int distX_Sq = dx * dx;
+                int distY_Sq = dy * dy;
+                
+                // Only check if bots are on similar Y-level (same ground level)
+                if (distY_Sq > Y_TOLERANCE_SQ) {
+                    continue; // Skip if too far vertically
+                }
+                
+                // Check if bots are too close horizontally
+                if (distX_Sq < AVOIDANCE_DISTANCE_SQ && distX_Sq > 0) {
+                    // Calculate nudge amount (50% to each bot)
+                    // Nudge strength based on how close they are (closer = stronger)
+                    // Only calculate sqrt when we know we need to nudge
+                    int distance = (int)Math.sqrt(distX_Sq);
+                    int nudgeAmount = (AVOIDANCE_DISTANCE - distance) / 2; // Split between two bots
                     
-                    // Calculate overlap and separation distance needed
-                    double distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance == 0) distance = 0.1; // Avoid division by zero
+                    // Limit max nudge to prevent jerky movement
+                    nudgeAmount = Math.min(nudgeAmount, MAX_NUDGE);
+                    nudgeAmount = Math.max(1, nudgeAmount); // At least 1px to ensure separation
                     
-                    // Minimum distance between bot centers (hitbox width)
-                    double minDistance = botA.solidArea.width;
-                    
-                    if (distance < minDistance) {
-                        // Calculate separation vector
-                        double separationX = (minDistance - distance) / 2.0 * (dx / distance);
-                        double separationY = (minDistance - distance) / 2.0 * (dy / distance);
-                        
-                        // Push bots apart
-                        botA.worldX -= (int)separationX;
-                        botA.worldY -= (int)separationY;
-                        botB.worldX += (int)separationX;
-                        botB.worldY += (int)separationY;
+                    // Apply 50% nudge to each bot (push them apart horizontally)
+                    if (dx > 0) {
+                        // botB is to the right of botA
+                        // Push botA left, botB right
+                        botA.worldX -= nudgeAmount;
+                        botB.worldX += nudgeAmount;
+                    } else if (dx < 0) {
+                        // botB is to the left of botA
+                        // Push botA right, botB left
+                        botA.worldX += nudgeAmount;
+                        botB.worldX -= nudgeAmount;
                     }
+                    // If dx == 0, bots are on same X, skip (rare edge case)
                 }
             }
         }
@@ -462,7 +493,7 @@ public class bot extends entity {
                     pauseCounter++;
                     if (pauseCounter >= pauseDuration) {
                         isPaused = false;
-                        sprintCounter = 10; // Sprint for 1 second (reduced from 90)
+                        sprintCounter = 90; // Sprint for 1.5 seconds
                     }
                 } else if (sprintCounter > 0) {
                     sprintCounter--;
@@ -479,43 +510,6 @@ public class bot extends entity {
                     patrolMovement();
                 }
                 break;
-        }
-    }
-    
-    private void checkBotCollision() {
-        // Check if movement in current direction would cause collision
-        // Create a test hitbox at the next position based on current direction
-        Rectangle testHitbox = new Rectangle(
-            worldX + solidArea.x,
-            worldY + solidArea.y,
-            solidArea.width,
-            solidArea.height
-        );
-        
-        // Simulate movement in current direction
-        int testSpeed = (botType == BotType.YELLOW && sprintCounter > 0 && !isPaused) ? 
-                        (int)Math.ceil(baseSpeed * 2.0f) : speed;
-        
-        switch (direction) {
-            case "left": testHitbox.x -= testSpeed; break;
-            case "right": testHitbox.x += testSpeed; break;
-            case "up": testHitbox.y -= testSpeed; break;
-            case "down": testHitbox.y += testSpeed; break;
-        }
-        
-        // Check if this movement would collide with another bot
-        for (bot other : gp.bots) {
-            if (other == this) continue;
-            
-            Rectangle otherHitbox = new Rectangle(other.worldX + other.solidArea.x, 
-                                                   other.worldY + other.solidArea.y, 
-                                                   other.solidArea.width, 
-                                                   other.solidArea.height);
-            
-            if (testHitbox.intersects(otherHitbox)) {
-                collisionOn = true; // Block movement in this direction
-                return;
-            }
         }
     }
     
@@ -607,10 +601,27 @@ public class bot extends entity {
         }
     }
 
-	public void updateAI(int playerWorldX, int playerWorldY) {
-		// This method is called from gamePanel with player coordinates
-		// The existing update() method already handles AI logic using gp.player
-		// So we just call update() which has all the AI logic
-		update();
-	}
+	public void updateAI(int playerX, int playerY) {
+        // Nếu đang ở chế độ di chuyển sang phải (như Dinosaur game)
+        if (isMovingRight) {
+            direction = "right";
+            worldX += speed;
+            
+            // Kiểm tra nếu bot đã đi quá xa bên phải thì xóa
+            if (worldX > gp.player.worldX + gp.width) {
+                gp.bots.remove(this);
+            }
+        } else {
+            // AI cũ theo player (giữ lại cho các tính năng khác)
+            // ... existing AI code ...
+        }
+        
+        // Update animation
+        spriteCounter++;
+        if (spriteCounter > 12) {
+            if (spriteNum == 1) spriteNum = 2;
+            else if (spriteNum == 2) spriteNum = 1;
+            spriteCounter = 0;
+        }
+    }
 }
