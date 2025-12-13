@@ -34,18 +34,15 @@ public class gamePanel extends JPanel implements Runnable {
     public BufferedImage backgroundImage;
     int FPS = 60;
 
-
-    public UI ui = new UI(this); // Khởi tạo giao diện Menu
+    public UI ui = new UI(this);
     public int gameState;
-    public final int titleState = 0; // Trạng thái ở Lobby
-    public final int playState = 1;  // Trạng thái đang chơi
-    public final int guideState = 2; // Trạng thái xem hướng dẫn
+    public final int titleState = 0;
+    public final int playState = 1;
+    public final int guideState = 2;
 
     tileManager tileM = new tileManager(this);
-
-
+    public Camera camera;
     public keyHander keyH = new keyHander(this);
-
     public collisionChecker cChecker = new collisionChecker(this);
 
     Thread gameThread;
@@ -68,6 +65,7 @@ public class gamePanel extends JPanel implements Runnable {
         bgMusic = new BackgroundMusic("/music/MusicBackground.wav");
         loseMusic = new BackgroundMusic("/music/over_ending.wav");
         bgMusic.playLoop();
+
         try {
             backgroundImage = ImageIO.read(
                     getClass().getResourceAsStream("/res/ui/chongchay.png")
@@ -78,20 +76,23 @@ public class gamePanel extends JPanel implements Runnable {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
         this.setOpaque(true);
         this.setPreferredSize(new Dimension(width, height));
         this.setBackground(new Color(37, 150, 190));
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
         this.setFocusable(true);
-
         this.addMouseListener(new mouseHandler(this));
 
         gameState = titleState;
 
+        // KHỞI TẠO CAMERA
+        camera = new Camera(this);
 
         getPlayerImage();
-       spawnBots();
+        spawnBots();
+
         try {
             java.net.URL imageUrl = getClass().getResource("/tile/clound1.png");
             if (imageUrl != null) {
@@ -103,20 +104,17 @@ public class gamePanel extends JPanel implements Runnable {
             e.printStackTrace();
         }
 
-
         gameState = titleState;
-
     }
 
     public void getPlayerImage() {
-        heartIcon = setup("chao_hanh"); // Đảm bảo bạn có ảnh chao_hanh.png trong folder player
+        heartIcon = setup("chao_hanh");
     }
 
     public BufferedImage setup(String imagePath) {
         utiltityTool uTool = new utiltityTool();
         BufferedImage image = null;
         try {
-            // Lưu ý: Đảm bảo đường dẫn ảnh đúng
             image = ImageIO.read(getClass().getResourceAsStream("/res/player/" + imagePath + ".png"));
             image = uTool.scaleImage(image, tileSize, tileSize);
         } catch (IOException e) {
@@ -130,8 +128,8 @@ public class gamePanel extends JPanel implements Runnable {
         bots.add(new bot(this, tileSize * 10, tileSize * 10));
         bots.add(new bot(this, tileSize * 20, tileSize * 8));
         bots.add(new bot(this, tileSize * 26, tileSize * 14));
-        //vị trí chí phèo
-        chiPheo = new ChiPheo(this, tileSize * 17, tileSize * 11+15);
+        // Vị trí chí phèo
+        chiPheo = new ChiPheo(this, tileSize * 17, tileSize * 11 + 15);
     }
 
     public void startGameThread() {
@@ -158,23 +156,23 @@ public class gamePanel extends JPanel implements Runnable {
     }
 
     public void update() {
-        // --- 4. LOGIC UPDATE DỰA TRÊN TRẠNG THÁI ---
-
-        // Nếu đang ở Lobby hoặc Guide thì KHÔNG update game (nhân vật đứng yên)
         if (gameState == titleState || gameState == guideState) {
             return;
         }
 
-        // Nếu Game Over
         if (gameOver) {
             if (keyH.restartPress) restartGame();
             if (keyH.exitPress) System.exit(0);
             return;
         }
 
-        // Nếu đang chơi (PlayState) thì mới chạy logic dưới đây
         if (gameState == playState) {
+            // CẬP NHẬT CAMERA TRƯỚC
+            camera.update();
             player.update();
+
+
+
             if (chiPheo != null) chiPheo.update();
 
             for (bot b : bots) {
@@ -192,10 +190,29 @@ public class gamePanel extends JPanel implements Runnable {
                 for (bot b : bots) {
                     if (cChecker.entitiesIntersect(player, b)) {
                         playerHp = Math.max(0, playerHp - 1);
-                        damageEffects.add(new damageEffect(player.screenX + tileSize / 2, player.screenY, "-1"));
+                        // Tính toán vị trí màn hình cho damage effect
+                        int screenX = camera.worldXToScreenX(player.worldX) + tileSize / 2;
+                        int screenY = camera.worldYToScreenY(player.worldY);
+                        damageEffects.add(new damageEffect(screenX, screenY, "-1"));
                         playerInvincible = true;
                         break;
                     }
+                }
+            }
+
+            int playerTileCol = player.worldX / tileSize;
+            int playerTileRow = player.worldY / tileSize;
+
+            // Đảm bảo không vượt quá giới hạn map
+            if (playerTileCol >= 0 && playerTileCol < maxWorldCol &&
+                    playerTileRow >= 0 && playerTileRow < maxWorldRow) {
+
+                int tileIndex = tileM.mapTileNum[playerTileCol][playerTileRow];
+
+
+                if (tileIndex == 8 && !gameOver) {
+
+                    triggerGameOver();
                 }
             }
 
@@ -210,11 +227,11 @@ public class gamePanel extends JPanel implements Runnable {
         }
     }
 
+
     private void triggerGameOver() {
         gameOver = true;
         showGameOverMenu = true;
         if (bgMusic != null) bgMusic.stop();
-        // ★ PHÁT NHẠC THUA (1 lần)
         if (loseMusic != null) loseMusic.playOnce();
         System.out.println("Game over menu should be visible now");
     }
@@ -229,14 +246,17 @@ public class gamePanel extends JPanel implements Runnable {
         gameOver = false;
         showGameOverMenu = false;
 
-
         if (loseMusic != null) loseMusic.stop();
         if (bgMusic != null) {
             bgMusic.stop();
             bgMusic.playLoop();
         }
 
-        // Reset lại vào game luôn (hoặc về menu nếu muốn: gameState = titleState)
+        // Reset camera về vị trí player
+        if (camera != null) {
+            camera.centerOnPlayer();
+        }
+
         gameState = playState;
     }
 
@@ -252,52 +272,49 @@ public class gamePanel extends JPanel implements Runnable {
         }
 
         if (gameState == titleState || gameState == guideState) {
-            ui.draw(g2); // Chỉ vẽ UI Menu
-        }
+            ui.draw(g2);
+        } else {
+            // Vẽ tile map với camera offset
+            tileM.draw(g2, camera.worldX, camera.worldY);
 
-        // B. NẾU ĐANG CHƠI
-        else {
-
-            if (backgroundImage != null) {
-                g2.drawImage(backgroundImage, 0, 0, width, height, null);
-            } else {
-                g2.setColor(new Color(37, 150, 190));
-                g2.fillRect(0, 0, width, height);
-            }
-
-            // 2. Vẽ Map
-            tileM.draw(g2);
-
-            // 3. Vẽ Bot
+            // Vẽ bot với camera offset
             for (bot b : bots) {
-                b.draw(g2);
+                int screenX = camera.worldXToScreenX(b.worldX);
+                int screenY = camera.worldYToScreenY(b.worldY);
+                b.draw(g2, screenX, screenY);
             }
 
-            // 4. Vẽ Player
-            player.draw(g2);
+            // Vẽ player với camera offset
+            int playerScreenX = camera.worldXToScreenX(player.worldX);
+            int playerScreenY = camera.worldYToScreenY(player.worldY);
+            player.draw(g2, playerScreenX, playerScreenY);
 
-            // vẻ chí phèo
+            // Lưu screen position cho damageEffect
+
+
+            // Vẽ chí phèo với camera offset
             if (chiPheo != null) {
-                chiPheo.draw(g2);
+                int chiPheoScreenX = camera.worldXToScreenX(chiPheo.worldX);
+                int chiPheoScreenY = camera.worldYToScreenY(chiPheo.worldY);
+                chiPheo.draw(g2, chiPheoScreenX+tileSize*32, chiPheoScreenY-tileSize*2);
             }
 
-            // 5. Vẽ Hiệu ứng damage
+            // Vẽ Hiệu ứng damage (đã là screen coordinates)
             for (damageEffect effect : damageEffects) {
                 effect.draw(g2);
             }
 
-            // 6. Vẽ Máu (HUD)
+            // Vẽ Máu (HUD)
             drawPlayerLife(g2);
 
+            // Vẽ mây
             if (cloudImage != null) {
                 g2.drawImage(cloudImage, 50, 50, 100, 100, this);
                 g2.drawImage(cloudImage, 400, 70, 100, 80, this);
                 g2.drawImage(cloudImage, 700, 80, 120, 150, this);
                 g2.drawImage(cloudImage, 1000, 55, 150, 80, this);
-
             }
 
-            // 7. Vẽ Menu Game Over (Nếu thua)
             if (showGameOverMenu) {
                 drawGameOverScreen(g2);
             }
@@ -355,4 +372,15 @@ public class gamePanel extends JPanel implements Runnable {
         g2.drawString(instructionText, menuX + (menuWidth - instWidth) / 2, menuY + 170);
 
     }
+
+    public int getScreenX(int worldX) {
+        return camera.worldXToScreenX(worldX);
+    }
+
+    public int getScreenY(int worldY) {
+        return camera.worldYToScreenY(worldY);
+    }
+
 }
+
+

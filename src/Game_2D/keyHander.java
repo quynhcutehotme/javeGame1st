@@ -8,6 +8,8 @@ public class keyHander implements KeyListener {
     // 1. KHAI BÁO BIẾN gamePanel ĐỂ KẾT NỐI
     gamePanel gp;
 
+    public boolean showHitbox = false;
+
     public boolean upPress, downPress, leftPress, rightPress;
     public boolean restartPress, exitPress;
     public boolean jumpPress;

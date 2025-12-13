@@ -36,9 +36,9 @@ public class tileManager {
         setup(5,"grassCollision",true); //cỏ C
         setup(6,"solidCollision",true); //đát c
         setup(7,"skyCollision",true);
+        setup(8,"solidDie",false);
 
     }
-
 
     public void setup(int index, String imagePath, boolean collision){
         utiltityTool uTool = new utiltityTool();
@@ -92,41 +92,57 @@ public class tileManager {
         }
     }
 
-    public void draw(Graphics2D g2) {
+    // PHƯƠNG THỨC DRAW MỚI - NHẬN CAMERA OFFSET
+    public void draw(Graphics2D g2, int cameraX, int cameraY) {
 
-        int worldCol = 0;
-        int worldRow = 0;
-
-        // Fill background to avoid showing panel background at edges
+        // Fill background
         g2.setColor(new Color(92, 201, 141));
         g2.fillRect(0, 0, gp.width, gp.height);
 
+        // Tính toán các tile cần vẽ dựa trên camera
+        int startCol = cameraX / gp.tileSize;
+        int startRow = cameraY / gp.tileSize;
 
-        while (worldCol < gp.maxWorldCol && worldRow < gp.maxWorldRow) {
+        // +2 để đảm bảo không bị khoảng trống
+        int endCol = startCol + (gp.width / gp.tileSize) + 2;
+        int endRow = startRow + (gp.height / gp.tileSize) + 2;
 
-            int tileNum = mapTileNum[worldCol][worldRow];
+        // Giới hạn trong map
+        startCol = Math.max(startCol, 0);
+        startRow = Math.max(startRow, 0);
+        endCol = Math.min(endCol, gp.maxWorldCol);
+        endRow = Math.min(endRow, gp.maxWorldRow);
 
-            int worldX = worldCol * gp.tileSize;
-            int worldY = worldRow * gp.tileSize;
-            int screenX = worldX - gp.player.worldX + gp.player.screenX;
-            int screenY = worldY - gp.player.worldY + gp.player.screenY;
+        for (int row = startRow; row < endRow; row++) {
+            for (int col = startCol; col < endCol; col++) {
 
-            if (worldX + gp.tileSize > gp.player.worldX - gp.player.screenX &&
-                    worldX - gp.tileSize < gp.player.worldX + gp.player.screenX  &&
-                    worldY + gp.tileSize > gp.player.worldY - gp.player.screenY &&
-                    worldY - gp.tileSize < gp.player.worldY + gp.player.screenY)
-            {
-                g2.drawImage(tile[tileNum].image, screenX, screenY,  null);
+                int tileNum = mapTileNum[col][row];
 
+                int worldX = col * gp.tileSize;
+                int worldY = row * gp.tileSize;
+                int screenX = worldX - cameraX;
+                int screenY = worldY - cameraY;
+
+                // Chỉ vẽ tile nằm trong màn hình
+                if (screenX + gp.tileSize > 0 && screenX < gp.width &&
+                        screenY + gp.tileSize > 0 && screenY < gp.height) {
+
+                    if (tileNum >= 0 && tileNum < tile.length && tile[tileNum] != null) {
+                        g2.drawImage(tile[tileNum].image, screenX, screenY, null);
+                    }
+                }
             }
+        }
+    }
 
-            worldCol++;
-
-            if (worldCol == gp.maxWorldCol) {
-                worldCol = 0;
-                worldRow++;
-
-            }
+    // Giữ phương thức cũ để tương thích
+    public void draw(Graphics2D g2) {
+        // Sử dụng camera từ gamePanel
+        if (gp.camera != null) {
+            draw(g2, gp.camera.worldX, gp.camera.worldY);
+        } else {
+            // Fallback: dùng player position
+            draw(g2, gp.player.worldX - gp.player.screenX, gp.player.worldY - gp.player.screenY);
         }
     }
 }
