@@ -1,9 +1,9 @@
 package Game_2D;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import javax.imageio.ImageIO;
 
 public class UI {
 
@@ -29,13 +29,13 @@ public class UI {
 
         try {
 
-            if (getClass().getResourceAsStream("/res/ui/background.png") != null) {
-                titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/background.png"));
+            if (getClass().getResourceAsStream("/res/ui/backgr.png") != null) {
+                titleBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/backgr.png"));
             } else {
                 System.err.println("!!! THIẾU ẢNH NỀN: /res/ui/background.png");
             }
 
-            // Load các nút bấm (Code cũ)
+
             if (getClass().getResourceAsStream("/res/ui/start_button.png") != null)
                 btnStart = ImageIO.read(getClass().getResourceAsStream("/res/ui/start_button.png"));
 
@@ -64,93 +64,51 @@ public class UI {
     }
 
     public void drawTitleScreen() {
-        // --- 3. VẼ ẢNH NỀN (Thay thế cho màu đen) ---
         if (titleBackground != null) {
-            // Nếu có ảnh thì vẽ ảnh
             g2.drawImage(titleBackground, 0, 0, gp.width, gp.height, null);
         } else {
-            // Nếu không có ảnh (hoặc quên bỏ vào) thì vẽ màu đen chống cháy
             g2.setColor(Color.black);
             g2.fillRect(0, 0, gp.width, gp.height);
         }
 
-        // Vẽ Tên Game
-        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 80F));
-        String text = "BÁT CHÁO HÀNH";
-        int x = getXforCenteredText(text);
-        int y = gp.tileSize * 3;
 
-        // Vẽ bóng chữ (Màu đen cho dễ đọc trên nền ảnh)
-        g2.setColor(Color.black);
-        g2.drawString(text, x + 6, y + 6);
-        // Vẽ chữ chính (Màu trắng)
-        g2.setColor(Color.white);
-        g2.drawString(text, x, y);
-
-        // Vẽ Nút Bấm
         int btnWidth = gp.tileSize * 4;
-        int btnHeight = gp.tileSize;
+        int btnHeight = gp.tileSize *3;
         int btnX = (gp.width / 2) - (btnWidth / 2);
         int btnY = gp.tileSize * 5;
 
         // Nút START
-        if (btnStart != null) g2.drawImage(btnStart, btnX, btnY, btnWidth, btnHeight, null);
-        if (commandNum == 0) {
-            g2.setColor(Color.white); // Mũi tên màu trắng
-            g2.drawString(">", btnX - gp.tileSize, btnY + 52);
-        }
+        if (btnStart != null) g2.drawImage(btnStart, btnX, btnY-100, btnWidth, btnHeight, null);
+        startButtonBounds = new Rectangle(btnX+20, btnY-40, btnWidth-40, btnHeight-120);
 
         // Nút GUIDE
         btnY += gp.tileSize * 1.5;
-        if (btnGuide != null) g2.drawImage(btnGuide, btnX, btnY, btnWidth, btnHeight, null);
-        if (commandNum == 1) {
-            g2.drawString(">", btnX - gp.tileSize, btnY + 52);
-        }
+        if (btnGuide != null) g2.drawImage(btnGuide, btnX-18, btnY-110, btnWidth+40, btnHeight+40, null); // Kích thước và vị trí chưa đồng bộ
+        guideButtonBounds = new Rectangle(btnX+27, btnY-32, btnWidth-55, btnHeight-130);
 
         // Nút QUIT
         btnY += gp.tileSize * 1.5;
-        if (btnQuit != null) g2.drawImage(btnQuit, btnX, btnY, btnWidth, btnHeight, null);
-        if (commandNum == 2) {
-            g2.drawString(">", btnX - gp.tileSize, btnY + 52);
-        }
+        if (btnQuit != null) g2.drawImage(btnQuit, btnX-40, btnY-120, btnWidth+80, btnHeight+55, null);
+        quitButtonBounds = new Rectangle(btnX+27, btnY-40, btnWidth-55, btnHeight-130);
+
     }
 
     public void drawGuideScreen() {
-        // Màn hình hướng dẫn cũng có thể dùng nền ảnh nếu thích
-        // Ở đây mình để nền đen mờ cho dễ đọc chữ
-        g2.setColor(new Color(0, 0, 0));
-        g2.fillRect(0, 0, gp.width, gp.height);
-
-        g2.setColor(Color.white);
-        Font arial_40 = null;
-        g2.setFont(arial_40);
-
-        String text = "GUIDE";
-        int x = getXforCenteredText(text);
-        int y = gp.tileSize * 2;
-        g2.drawString(text, x, y);
-
-        g2.setFont(g2.getFont().deriveFont(20F));
-
-        String[] lines = {
-                "Press W, A, S, D or Arrow Keys to move.",
-                "Jump on monsters to defeat them.",
-                "Avoid monsters and find Chi Pheo.",
-                "Touch Chi Pheo to win the game.",
-                "Drop 3 bowls and the game ends."
-        };
-
-        x = gp.tileSize;
-        y += gp.tileSize * 3;
-
-        for (String line : lines) {
-            g2.drawString(line, x, y);
-            y += gp.tileSize; // khoảng cách giữa các dòng
+        if (guideBackground == null) { // chỉ load 1 lần
+            try {
+                guideBackground = ImageIO.read(getClass().getResourceAsStream("/res/ui/guildBackground.png"));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
-        text = "Nhấn ENTER hoặc ESC để quay lại.";
-        y += gp.tileSize * 2;
-        g2.drawString(text, x, y);
+        if (guideBackground != null) {
+            g2.drawImage(guideBackground, 0, 0, gp.width, gp.height, null);
+        } else {
+            // fallback nếu thiếu ảnh
+            g2.setColor(Color.black);
+            g2.fillRect(0, 0, gp.width, gp.height);
+        }
     }
 
     public int getXforCenteredText(String text) {

@@ -1,6 +1,8 @@
 package Game_2D;
 
 import entity.entity;
+import entity.player;
+import entity.bot;
 
 public class collisionChecker {
     gamePanel gp;
@@ -188,5 +190,40 @@ public class collisionChecker {
 
         return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
     }
-}
 
+    public boolean checkCollisionY(entity e, float newY) {
+
+        int left = e.worldX + e.solidArea.x;
+        int right = e.worldX + e.solidArea.x + e.solidArea.width;
+        int top = (int)(newY + e.solidArea.y);
+        int bottom = (int)(newY + e.solidArea.y + e.solidArea.height);
+
+        int leftCol = left / gp.tileSize;
+        int rightCol = right / gp.tileSize;
+        int topRow = top / gp.tileSize;
+        int bottomRow = bottom / gp.tileSize;
+
+        // chặn index
+        leftCol = Math.max(0, Math.min(leftCol, gp.maxWorldCol - 1));
+        rightCol = Math.max(0, Math.min(rightCol, gp.maxWorldCol - 1));
+        topRow = Math.max(0, Math.min(topRow, gp.maxWorldRow - 1));
+        bottomRow = Math.max(0, Math.min(bottomRow, gp.maxWorldRow - 1));
+
+        int tile1 = gp.tileM.mapTileNum[leftCol][topRow];
+        int tile2 = gp.tileM.mapTileNum[rightCol][topRow];
+        int tile3 = gp.tileM.mapTileNum[leftCol][bottomRow];
+        int tile4 = gp.tileM.mapTileNum[rightCol][bottomRow];
+
+        // tile nào có collision → đứng lại
+        if (gp.tileM.tile[tile1].collision ||
+                gp.tileM.tile[tile2].collision ||
+                gp.tileM.tile[tile3].collision ||
+                gp.tileM.tile[tile4].collision) {
+
+            return true;
+        }
+        return false;
+    }
+
+
+}

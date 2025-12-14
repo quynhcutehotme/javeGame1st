@@ -19,42 +19,51 @@ public class player extends entity {
     public int screenX;
     public final int screenY;
 
-    public int maxLife;
-    public int life;
+    // ===== PHYSICS =====
+    public float velocityY = 0f;
+    public float gravity = 0.6f;
+
+    public final float jumpLow = -13f;
+    public final float jumpHigh = -17f;
+
+    public boolean isGrounded = false;
+    public boolean isJumping = false;
+
+    // Jump control
+    private boolean jumpCharging = false;
+    private int jumpChargeCounter = 0;
+    private final int JUMP_CHARGE_LIMIT = 5; // giữ bao lâu thì nhảy cao
+
+    // Player stats
+    public int maxLife = 3;
+    public int life = 3;
     public boolean invincible = false;
     public int invincibleCounter = 0;
     private final int INVINCIBLE_DURATION = 60;
 
-    // Jump/Gravity state
-    public float velocityY = 0f;
-    public float gravity = 0.6f;
-    public float jumpStrength = -13f;
-    public boolean isGrounded = false;
-    public boolean isJumping = false;
-    public int jumpVisualOffset = 0;
-    public int camX;
-    public int lastCamX;
-
-    // Stomp
+    // Stomp mechanic
     public boolean isStomping = false;
     public int stompDamage = 1;
     public float stompBounceStrength = -8f;
 
+    // Movement control
     public boolean canMove = true;
-    public int rotationAngle = 0;
 
-    // Ground
+    // Ground level (từ player merged trước)
     private int groundLevel = 0;
 
-    // >>>>> KEY FIX: trạng thái rơi xuống hố
+    // Hole falling (từ player merged trước)
     private boolean fallingInHole = false;
+
+    // Visual offset for jumping
+    public int jumpVisualOffset = 0;
 
     public player(gamePanel gp, keyHander keyH) {
         this.gp = gp;
         this.keyH = keyH;
 
         screenX = gp.width / 2 - (gp.tileSize / 2);
-        screenY = gp.height * 2 / 4 + (gp.tileSize);
+        screenY = gp.height * 2 / 4 + gp.tileSize;
 
         solidArea = new Rectangle();
         solidArea.x = 45;
@@ -65,34 +74,37 @@ public class player extends entity {
         setDefaultValue();
         getPlayerImage();
 
-        groundLevel = gp.tileSize * 10;
+        groundLevel = gp.tileSize * 11; // Khởi tạo ground level
     }
 
     public void setDefaultValue() {
-        worldX = gp.tileSize * 10;
-        groundLevel = gp.tileSize * 10;
-        worldY = groundLevel;
+        worldX = gp.tileSize * 11;
+        worldY = gp.tileSize * 11;
+        groundLevel = gp.tileSize * 11;
         speed = 4;
         direction = "right";
 
-        maxLife = 3;
         life = maxLife;
         invincible = false;
+        invincibleCounter = 0;
 
         velocityY = 0f;
         isGrounded = true;
         isJumping = false;
         isStomping = false;
+        jumpCharging = false;
+        jumpChargeCounter = 0;
 
         fallingInHole = false;
         canMove = true;
+        jumpVisualOffset = 0;
     }
 
     public void getPlayerImage() {
-        right1 = setup("ThiNo-1");
-        right2 = setup("ThiNo-2");
-        left1 = setup("ThiNo-3");
-        left2 = setup("ThiNo-4");
+        right1 = setup("ThiNo-1.png");
+        right2 = setup("ThiNo-2.png");
+        left1  = setup("ThiNo-3.png");
+        left2  = setup("ThiNo-4.png");
     }
 
     public BufferedImage setup(String imagePath) {
@@ -100,14 +112,17 @@ public class player extends entity {
         BufferedImage image = null;
 
         try {
-            InputStream is = getClass().getResourceAsStream("/res/player/" + imagePath + ".png.png");
+            // Thử nhiều cách load ảnh
+            InputStream is = getClass().getResourceAsStream("/res/player/" + imagePath + ".png");
             if (is == null) {
-                is = getClass().getResourceAsStream("/res/player/" + imagePath + ".png");
+                // Thử với .png.png
+                is = getClass().getResourceAsStream("/res/player/" + imagePath + ".png.png");
             }
             if (is == null) {
-                File f = new File("src/res/player/" + imagePath + ".png.png");
+                // Thử từ file system
+                File f = new File("src/res/player/" + imagePath + ".png");
                 if (!f.exists()) {
-                    f = new File("src/res/player/" + imagePath + ".png");
+                    f = new File("out/res/player/" + imagePath + ".png");
                 }
                 if (f.exists()) {
                     is = new FileInputStream(f);
@@ -124,7 +139,7 @@ public class player extends entity {
         return image;
     }
 
-    // ===== HOLE FALL API (gamePanel gọi) =====
+    // ===== HOLE FALL API (từ player merged trước) =====
     public void beginHoleFall() {
         fallingInHole = true;
         canMove = false;      // khóa điều khiển khi rơi
@@ -144,7 +159,7 @@ public class player extends entity {
         return fallingInHole;
     }
 
-    // Stomp area
+    // Stomp area (từ player merged trước)
     public Rectangle getStompArea() {
         return new Rectangle(
                 worldX + solidArea.x,
@@ -175,53 +190,83 @@ public class player extends entity {
     }
 
     public void update() {
-        // >>>>> KEY FIX: nếu đang rơi hố, chỉ gravity rơi xuống (không snap ground, không clamp Y)
+        // >>>>> KEY FIX: nếu đang rơi hố, chỉ gravity rơi xuống
         if (fallingInHole) {
             velocityY += gravity;
             worldY += (int) Math.round(velocityY);
 
-            // vẫn cho X đứng yên (hoặc bạn muốn trượt cũng được)
+            // vẫn cho X đứng yên
             jumpVisualOffset = (int) (-velocityY * 0.5);
             return;
         }
 
-        // 1) Horizontal movement
+        // ===================== HORIZONTAL MOVEMENT =====================
         if (canMove && (keyH.leftPress || keyH.rightPress)) {
+
             if (keyH.leftPress) direction = "left";
-            else if (keyH.rightPress) direction = "right";
+            if (keyH.rightPress) direction = "right";
 
             collisionOn = false;
             gp.cChecker.checkTile(this);
 
             if (!collisionOn) {
-                if (keyH.leftPress) worldX -= speed;
-                else if (keyH.rightPress) worldX += speed;
+                if (direction.equals("left")) worldX -= speed;
+                if (direction.equals("right")) worldX += speed;
+            }
+
+            spriteCounter++;
+            if (spriteCounter > 10) {
+                spriteNum = (spriteNum == 1 ? 2 : 1);
+                spriteCounter = 0;
             }
         }
 
-        // 2) Jump
-        if (canMove && keyH.jumpPress && isGrounded) {
-            velocityY = jumpStrength;
+        // ===================== JUMP INPUT =====================
+        if (isGrounded) {
+            if (keyH.jumpPress && !jumpCharging) {
+                // bắt đầu giữ
+                jumpCharging = true;
+                jumpChargeCounter = 0;
+            }
+
+            if (jumpCharging && keyH.jumpPress) {
+                jumpChargeCounter++;
+
+                // giữ đủ lâu → nhảy cao
+                if (jumpChargeCounter >= JUMP_CHARGE_LIMIT) {
+                    velocityY = jumpHigh;
+                    isGrounded = false;
+                    isJumping = true;
+                    jumpCharging = false;
+                    keyH.jumpPress = false; // Reset jump press
+                }
+            }
+
+            // thả sớm → nhảy thấp
+            if (jumpCharging && !keyH.jumpPress) {
+                velocityY = jumpLow;
+                isGrounded = false;
+                isJumping = true;
+                jumpCharging = false;
+            }
+        }
+
+        // ===================== GRAVITY (GIỮ NGUYÊN TỪ PLAYER CÓ GRAVITY CHUẨN) =====================
+        velocityY += gravity;
+        float newY = worldY + velocityY;
+
+        // chỉ check collision khi rơi xuống
+        if (velocityY >= 0 && gp.cChecker.checkCollisionY(this, newY)) {
+            velocityY = 0;
+            isGrounded = true;
+            isJumping = false;
+            isStomping = false;
+        } else {
+            worldY = (int) newY;
             isGrounded = false;
-            isJumping = true;
-            keyH.jumpPress = false;
         }
 
-        // 3) Gravity
-        if (!isGrounded) {
-            velocityY += gravity;
-            worldY += (int) Math.round(velocityY);
-
-            if (worldY >= groundLevel) {
-                worldY = groundLevel;
-                velocityY = 0f;
-                isGrounded = true;
-                isJumping = false;
-                isStomping = false;
-            }
-        }
-
-        // 4) Clamp world bounds (BỎ clamp Y khi rơi hố đã return phía trên)
+        // ===================== BOUNDS CHECKING =====================
         int minX = 1 * gp.tileSize;
         int minY = 1 * gp.tileSize;
         int maxX = (gp.maxWorldCol - 2) * gp.tileSize;
@@ -232,17 +277,26 @@ public class player extends entity {
         if (worldX > maxX) worldX = maxX;
         if (worldY > maxY) worldY = maxY;
 
-        // 5) Jump visual offset
+        // ===================== JUMP VISUAL OFFSET =====================
         if (isJumping) {
             jumpVisualOffset = (int) (-velocityY * 0.5);
         } else {
             jumpVisualOffset = 0;
         }
 
-        // 6) Reset stomp flag
+        // ===================== RESET STOMP FLAG =====================
         if (isStomping) {
             if (velocityY >= 0) {
                 isStomping = false;
+            }
+        }
+
+        // ===================== INVINCIBILITY FRAMES =====================
+        if (invincible) {
+            invincibleCounter++;
+            if (invincibleCounter >= INVINCIBLE_DURATION) {
+                invincible = false;
+                invincibleCounter = 0;
             }
         }
     }
@@ -264,42 +318,91 @@ public class player extends entity {
         }
     }
 
-    public void draw(Graphics2D g2) {
-        BufferedImage image;
+    // Draw method với camera support
+    public void draw(Graphics2D g2, int screenX, int screenY) {
+        BufferedImage image = null;
 
         switch (direction) {
-            case "right":
-                image = (spriteNum == 1) ? right1 : right2;
-                break;
             case "left":
-                image = (spriteNum == 1) ? left1 : left2;
+                image = (spriteNum == 1 ? left1 : left2);
                 break;
-            default:
-                image = right1;
+            case "right":
+                image = (spriteNum == 1 ? right1 : right2);
+                break;
         }
 
+        // Invincibility blink effect
         if (invincible && invincibleCounter % 10 < 5) {
-            return;
+            // Hiển thị trong suốt
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
         }
 
         int drawY = screenY + jumpVisualOffset;
 
+        // Vẽ shadow khi nhảy
+        if (!isGrounded) {
+            g2.setColor(new Color(0, 0, 0, 70));
+            int shadowW = 64;
+            int shadowH = 16;
+            int shadowX = screenX + (128 - shadowW) / 2;
+            int shadowY = screenY + 128 - shadowH / 2 + jumpVisualOffset * 2;
+            g2.fillOval(shadowX, shadowY, shadowW, shadowH);
+        }
+
+        // Vẽ hiệu ứng stomp
         if (isStomping) {
             g2.setColor(new Color(255, 200, 0, 100));
             g2.fillRect(screenX, drawY, 128, 128);
         }
 
-        g2.drawImage(image, screenX, drawY, 128, 128, null);
+        // Vẽ player
+        if (image != null) {
+            g2.drawImage(image, screenX, drawY, 128, 128, null);
+        }
 
-        if (gp.gameState == gp.playState && gp.keyH.debugPress) {
+        // Reset composite nếu đang blink
+        if (invincible && invincibleCounter % 10 < 5) {
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+        }
+
+        // Debug hitbox
+        if (gp.gameState == gp.playState && (gp.keyH.debugPress || gp.keyH.showHitbox)) {
             g2.setColor(Color.RED);
+            g2.drawRect(
+                    screenX + solidArea.x,
+                    drawY + solidArea.y,
+                    solidArea.width,
+                    solidArea.height
+            );
+
+            // Vẽ stomp area
             Rectangle stompArea = getStompArea();
-            int screenStompX = stompArea.x - gp.player.worldX + gp.player.screenX;
-            int screenStompY = stompArea.y - gp.player.worldY + gp.player.screenY;
+            int screenStompX = stompArea.x - gp.player.worldX + screenX;
+            int screenStompY = stompArea.y - gp.player.worldY + drawY;
+            g2.setColor(Color.YELLOW);
             g2.drawRect(screenStompX, screenStompY, stompArea.width, stompArea.height);
+
+            // Vẽ ground level line (debug)
+            g2.setColor(Color.GREEN);
+            g2.drawLine(screenX - 50, screenY + 128, screenX + 178, screenY + 128);
         }
     }
 
+    // Overload cho backward compatibility
+    public void draw(Graphics2D g2) {
+        if (gp.camera != null) {
+            int screenX = worldX - gp.camera.worldX;
+            int screenY = worldY - gp.camera.worldY;
+            draw(g2, screenX, screenY);
+        } else {
+            // Fallback: dùng player position
+            int screenX = worldX - gp.player.worldX + gp.player.screenX;
+            int screenY = worldY - gp.player.worldY + gp.player.screenY;
+            draw(g2, screenX, screenY);
+        }
+    }
+
+    // ===================== GETTERS & SETTERS =====================
     public int getGroundLevel() {
         return groundLevel;
     }
@@ -310,5 +413,23 @@ public class player extends entity {
 
     public boolean isInAir() {
         return !isGrounded;
+    }
+
+    public int getScreenX() {
+        return screenX;
+    }
+
+    public int getScreenY() {
+        return screenY + jumpVisualOffset;
+    }
+
+    // Thêm method để kiểm tra xem player có đang trên hố không
+    public Rectangle getPlayerFeetRect() {
+        return new Rectangle(
+                worldX + solidArea.x,
+                worldY + solidArea.y + solidArea.height - 6,
+                solidArea.width,
+                12
+        );
     }
 }

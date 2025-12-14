@@ -1,6 +1,7 @@
 package Game_2D;
 
 import entity.ChiPheo;
+import entity.House;
 import entity.bot;
 import entity.player;
 import java.awt.*;
@@ -18,9 +19,15 @@ import tile.tileManager;
 public class gamePanel extends JPanel implements Runnable, MouseListener {
 
     public ChiPheo chiPheo;
+    public House house;
     Image cloudImage;
     BackgroundMusic bgMusic;
     BackgroundMusic loseMusic;
+    BackgroundMusic winMusic;
+
+    // Camera từ gamePanel thứ hai
+    public Camera camera;
+
     final int orgsSize = 16;
     final int scale = 2;
     public final int tileSize = orgsSize * scale * 2; // = 64
@@ -31,14 +38,17 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     public final int width = tileSize * maxColumn;   // 1024
     public final int height = tileSize * maxRow;
 
-    // Kích thước map thực tế theo file map.txt (102 cột x 18 hàng)
-    public final int maxWorldCol = 102;
-    public final int maxWorldRow = 18;
+    // Kích thước map thực tế
+    public final int maxWorldCol = 200;
+    public final int maxWorldRow = 200;
     public final int worldWidth = tileSize * maxWorldCol;
     public final int worldHeight = tileSize * maxWorldRow;
 
     public BufferedImage backgroundImage;
     int FPS = 60;
+
+    private long winStartTime = 0; // Thời điểm bắt đầu thắng
+    private boolean winBoardShown = false;
 
     public UI ui = new UI(this);
     public int gameState;
@@ -113,46 +123,27 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     private int stompDamage = 1;
     private final int stompBounceForce = 7;
 
-    // HOLE SETTINGS
-    private final java.util.List<Rectangle> holes = new java.util.ArrayList<>();
-    private final int holeTileId = 8; // ID tile hố
-    private int activeHoleBottomY = -1; // đáy hố hiện tại khi player rơi
+    // VÙNG CHẾT THAY VÌ HỐ - CHẠM VÀO LÀ CHẾT
+    public final java.util.List<Rectangle> deathZones = new java.util.ArrayList<>();
+    public final int deathZoneTileId = 8; // ID tile vùng chết
+//    public final Color deathZoneColor = new Color(255, 0, 0, 150); // Màu đỏ trong suốt
 
-    private Rectangle buildAttackHitbox(String direction) {
-        int baseX = player.worldX + player.solidArea.x;
-        int baseY = player.worldY + player.solidArea.y;
-        int boxWidth = player.solidArea.width;
-        int boxHeight = player.solidArea.height;
-
-        Rectangle hitbox;
-        switch (direction) {
-            case "left":
-                hitbox = new Rectangle(baseX - attackRange, baseY, attackRange, boxHeight);
-                break;
-            case "right":
-                hitbox = new Rectangle(baseX + boxWidth, baseY, attackRange, boxHeight);
-                break;
-            case "up":
-                hitbox = new Rectangle(baseX, baseY - attackRange, boxWidth, attackRange);
-                break;
-            case "down":
-                hitbox = new Rectangle(baseX, baseY + boxHeight, boxWidth, attackRange);
-                break;
-            default:
-                hitbox = new Rectangle(baseX + boxWidth, baseY, attackRange, boxHeight);
-                break;
-        }
-        return hitbox;
-    }
+    // Mouse handler từ gamePanel thứ hai
+    private mouseHandler mouseH;
 
     // Constructor
     public gamePanel() {
         bgMusic = new BackgroundMusic("/music/MusicBackground.wav");
         loseMusic = new BackgroundMusic("/music/over_ending.wav");
+        winMusic = new BackgroundMusic("/music/winMusic.wav");
         bgMusic.playLoop();
 
         try {
+            // Thử cả hai cách load background
             InputStream bgStream = getClass().getResourceAsStream("/res/map/background.png");
+            if (bgStream == null) {
+                bgStream = getClass().getResourceAsStream("/res/ui/chongchay.png");
+            }
             if (bgStream == null) {
                 File bgFile = new File("src/res/map/background.png");
                 if (!bgFile.exists()) {
@@ -171,10 +162,15 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         }
 
         this.setPreferredSize(new Dimension(width, height));
-        this.setBackground(new Color(92, 201, 141));
+        this.setBackground(new Color(37, 150, 190)); // Màu từ gamePanel thứ hai
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
         this.addMouseListener(this);
+
+        // Thêm mouseHandler từ gamePanel thứ hai
+        mouseH = new mouseHandler(this);
+        this.addMouseListener(mouseH);
+
         this.setFocusable(true);
 
         // focus listener để reset keys
@@ -185,24 +181,41 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
             }
         });
 
+        gameState = titleState;
+
+        // KHỞI TẠO CAMERA từ gamePanel thứ hai
+        camera = new Camera(this);
+
         getPlayerImage();
-        detectHoles(); // QUAN TRỌNG: detect holes trước spawn để tránh spawn vào hố
-        spawnBots();
+        detectDeathZones(); // PHÁT HIỆN VÙNG CHẾT
+       //spawnBots();
+        spawnChiPheo();
 
         try {
             java.net.URL imageUrl = getClass().getResource("/res/tile/clound1.png");
+            if (imageUrl == null) {
+                imageUrl = getClass().getResource("/tile/clound1.png");
+            }
             if (imageUrl != null) {
                 cloudImage = new ImageIcon(imageUrl).getImage();
             } else {
-                System.err.println("Lỗi: Không tìm thấy tài nguyên /tile/clound1.png.");
+                System.err.println("Lỗi: Không tìm thấy tài nguyên cloud.");
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        gameState = titleState;
         gameStartTime = 0;
         lastBotSpawnTime = System.currentTimeMillis();
+    }
+
+    // Phương thức camera từ gamePanel thứ hai
+    public int getScreenX(int worldX) {
+        return camera.worldXToScreenX(worldX);
+    }
+
+    public int getScreenY(int worldY) {
+        return camera.worldYToScreenY(worldY);
     }
 
     private int getBotSpawnY() {
@@ -210,118 +223,64 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         return player.getGroundLevel() + tileSize * 1;
     }
 
-    // Phát hiện hố trên map
-    private void detectHoles() {
-        holes.clear();
+    // PHÁT HIỆN VÙNG CHẾT TRÊN MAP - CHẠM VÀO LÀ DIE
+    private void detectDeathZones() {
+        deathZones.clear();
 
         // Dùng trực tiếp mapTileNum (public) để không cần sửa tileManager
         int[][] mapTileNum = tileM.mapTileNum;
 
         for (int row = 0; row < maxWorldRow; row++) {
             for (int col = 0; col < maxWorldCol; col++) {
-                if (mapTileNum[col][row] == holeTileId) {
-                    Rectangle hole = new Rectangle(
+                if (mapTileNum[col][row] == deathZoneTileId) {
+                    Rectangle deathZone = new Rectangle(
                             col * tileSize,
                             row * tileSize,
                             tileSize,
                             tileSize
                     );
-                    holes.add(hole);
+                    deathZones.add(deathZone);
                 }
             }
         }
+
+        System.out.println("Detected " + deathZones.size() + " death zones");
     }
 
-    private Rectangle getPlayerFeetRect() {
-        return new Rectangle(
+    // KIỂM TRA PLAYER CÓ CHẠM VÀO VÙNG CHẾT KHÔNG
+    private boolean isPlayerInDeathZone() {
+        if (gameOver || gameWon) return false;
+
+        Rectangle playerRect = new Rectangle(
                 player.worldX + player.solidArea.x,
-                player.worldY + player.solidArea.y + player.solidArea.height - 6,
+                player.worldY + player.solidArea.y,
                 player.solidArea.width,
-                12
-        );
-    }
-
-        private Rectangle findHoleUnderPlayer() {
-            int footX;
-
-            if (player.direction.equals("right")) {
-                footX = player.worldX + player.solidArea.x + (player.solidArea.width / 3);
-            } else {
-                footX = player.worldX + player.solidArea.x + (player.solidArea.width * 2 / 3);
-            }
-
-            for (Rectangle hole : holes) {
-                if (footX >= hole.x && footX < hole.x + hole.width) {
-                    return hole;
-                }
-            }
-            return null;
-        }
-
-    private boolean isBotOnHole(bot b) {
-        Rectangle botFeet = new Rectangle(
-                b.worldX + b.solidArea.x,
-                b.worldY + b.solidArea.y + b.solidArea.height - 10,
-                b.solidArea.width,
-                15
+                player.solidArea.height
         );
 
-        for (Rectangle hole : holes) {
-            if (botFeet.intersects(hole)) return true;
+        for (Rectangle deathZone : deathZones) {
+            if (playerRect.intersects(deathZone)) {
+                return true;
+            }
         }
         return false;
     }
 
-    // BẮT ĐẦU RƠI HỐ (chỉ set trạng thái)
-    private void tryStartHoleFall() {
-        if (player.isFallingInHole() || gameOver || gameWon) return;
-        if (!player.isGrounded) return;
+    // KIỂM TRA BOT CÓ CHẠM VÀO VÙNG CHẾT KHÔNG
+    private boolean isBotInDeathZone(bot b) {
+        Rectangle botRect = new Rectangle(
+                b.worldX + b.solidArea.x,
+                b.worldY + b.solidArea.y,
+                b.solidArea.width,
+                b.solidArea.height
+        );
 
-        Rectangle hole = findHoleUnderPlayer();
-        if (hole != null) {
-            activeHoleBottomY = hole.y + hole.height;
-            player.beginHoleFall(); // <<<<< KEY FIX: để player.update() KHÔNG snap về groundLevel
-        }
-    }
-
-    // KHI ĐANG RƠI: check điều kiện game over
-    private void updateHoleFallGameOver() {
-        if (!player.isFallingInHole()) return;
-
-        int playerFeetY = player.worldY + player.solidArea.y + player.solidArea.height;
-
-        // rơi xuống dưới đáy hố một chút là chết
-        if (activeHoleBottomY > 0 && playerFeetY >= activeHoleBottomY + tileSize * 2) {
-            System.out.println("Player hit the bottom of the hole! Game over!");
-            triggerGameOver();
-            return;
-        }
-
-        // hoặc rơi quá sâu khỏi map
-        if (player.worldY > worldHeight + tileSize * 10) {
-            System.out.println("Player fell out of the map! Game over!");
-            triggerGameOver();
-        }
-    }
-
-    private void checkBotHoleFall() {
-        java.util.Iterator<bot> iterator = bots.iterator();
-        while (iterator.hasNext()) {
-            bot b = iterator.next();
-
-            if (isBotOnHole(b)) {
-                deathEffects.add(new DeathEffect(
-                        b.worldX + b.solidArea.width / 2,
-                        b.worldY + b.solidArea.height / 2
-                ));
-
-                iterator.remove();
-
-                int effectScreenX = b.worldX - player.worldX + player.screenX + b.solidArea.width / 2;
-                int effectScreenY = b.worldY - player.worldY + player.screenY;
-                damageEffects.add(new damageEffect(effectScreenX, effectScreenY, "HOLE!", new Color(100, 100, 255)));
+        for (Rectangle deathZone : deathZones) {
+            if (botRect.intersects(deathZone)) {
+                return true;
             }
         }
+        return false;
     }
 
     public void getPlayerImage() {
@@ -340,31 +299,29 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         return image;
     }
 
-    // Chỉ spawn ChiPheo
     private void spawnBots() {
         bots.clear();
-        spawnChiPheo();
+
+
+
+
+        // Thêm house từ gamePanel thứ hai
+        house = new House(this, tileSize * 6, tileSize * 8 + 20);
 
         initialBotsSpawned = 0;
         lastInitialBotSpawnTime = 0;
     }
 
     private void spawnChiPheo() {
-        int chiPheoSpawnX = player.worldX + tileSize * 12;
-        int chiPheoSpawnY = (int) (player.getGroundLevel() + tileSize * 0.3);
-
-        chiPheoSpawnX = Math.max(tileSize * 2, Math.min(chiPheoSpawnX, worldWidth - tileSize * 6));
-        chiPheoSpawnY = Math.max(tileSize * 2, Math.min(chiPheoSpawnY, worldHeight - tileSize * 3));
-
-        for (Rectangle hole : holes) {
-            if (hole.contains(chiPheoSpawnX, chiPheoSpawnY)) {
-                chiPheoSpawnX += tileSize * 2;
-                break;
-            }
-        }
+        int chiPheoSpawnX =  tileSize * 50;
+        int chiPheoSpawnY = tileSize * 9 +15 ;
 
         chiPheo = new ChiPheo(this, chiPheoSpawnX, chiPheoSpawnY);
     }
+
+
+
+
 
     private void spawnInitialBot() {
         if (initialBotsSpawned >= maxInitialBots) return;
@@ -389,9 +346,10 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         int spawnX = spawnXPosition;
         int spawnY = getBotSpawnY();
 
-        for (Rectangle hole : holes) {
+        // Đảm bảo không spawn vào vùng chết
+        for (Rectangle deathZone : deathZones) {
             Rectangle spawnRect = new Rectangle(spawnX, spawnY, tileSize, tileSize);
-            if (spawnRect.intersects(hole)) {
+            if (spawnRect.intersects(deathZone)) {
                 spawnY -= tileSize;
                 break;
             }
@@ -412,9 +370,10 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         int spawnX = spawnXPosition;
         int spawnY = getBotSpawnY();
 
-        for (Rectangle hole : holes) {
+        // Đảm bảo không spawn vào vùng chết
+        for (Rectangle deathZone : deathZones) {
             Rectangle spawnRect = new Rectangle(spawnX, spawnY, tileSize, tileSize);
-            if (spawnRect.intersects(hole)) {
+            if (spawnRect.intersects(deathZone)) {
                 spawnY -= tileSize;
                 break;
             }
@@ -491,8 +450,8 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                     iterator.remove();
                     botsKilled++;
 
-                    int effectScreenX = b.worldX - player.worldX + player.screenX + b.solidArea.width / 2;
-                    int effectScreenY = b.worldY - player.worldY + player.screenY;
+                    int effectScreenX = camera.worldXToScreenX(b.worldX + b.solidArea.width / 2);
+                    int effectScreenY = camera.worldYToScreenY(b.worldY);
                     damageEffects.add(new damageEffect(effectScreenX, effectScreenY, "STOMP!", new Color(255, 200, 0)));
                 }
 
@@ -541,7 +500,11 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 }
 
                 playerHp = Math.max(0, playerHp - 1);
-                damageEffects.add(new damageEffect(player.screenX + tileSize / 2, player.screenY, "-1"));
+                damageEffects.add(new damageEffect(
+                        camera.worldXToScreenX(player.worldX) + tileSize / 2,
+                        camera.worldYToScreenY(player.worldY),
+                        "-1"
+                ));
                 playerInvincible = true;
                 invincibleCounter = 0;
 
@@ -602,6 +565,9 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 lastBotSpawnTime = System.currentTimeMillis();
             }
 
+            // CẬP NHẬT CAMERA TRƯỚC
+            camera.update();
+
             long currentTime = System.currentTimeMillis();
 
             // Spawn initial bots
@@ -653,27 +619,30 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 }
             }
 
-            // >>>>> KEY FIX: check hole BEFORE player.update so update chạy theo mode rơi-hố
-            tryStartHoleFall();
+            // >>>>> LOGIC MỚI: KIỂM TRA CHẠM VÙNG CHẾT TRƯỚC
+            if (isPlayerInDeathZone()) {
+                System.out.println("Player touched death zone! Game over!");
+                triggerGameOver();
+                return; // Không cần update tiếp
+            }
 
             player.update();
 
-            // sau update mới check chết vì rơi
-            updateHoleFallGameOver();
-            if (gameOver) return;
+            // Kiểm tra bot chạm vùng chết
+            checkBotDeathZone();
 
             if (chiPheo != null) chiPheo.update();
             checkChiPheoCollision();
 
             handleStompMechanic();
 
-           java.util.Iterator<bot> iterator = bots.iterator();
+            java.util.Iterator<bot> iterator = bots.iterator();
             while (iterator.hasNext()) {
                 bot b = iterator.next();
 
                 boolean shouldDespawn = b.updateAI(player.worldX, player.worldY);
                 if (shouldDespawn) {
-                    iterator.remove(); // ✅ remove theo % map
+                    iterator.remove();
                     continue;
                 }
 
@@ -681,7 +650,7 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 if (b.worldX > offscreenDespawnX) {
                     iterator.remove();
                 }
-}
+            }
 
             checkPlayerBotCollision();
 
@@ -696,6 +665,54 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 triggerGameOver();
             }
         }
+    }
+
+    // KIỂM TRA BOT CHẠM VÙNG CHẾT
+    private void checkBotDeathZone() {
+        java.util.Iterator<bot> iterator = bots.iterator();
+        while (iterator.hasNext()) {
+            bot b = iterator.next();
+
+            if (isBotInDeathZone(b)) {
+                deathEffects.add(new DeathEffect(
+                        b.worldX + b.solidArea.width / 2,
+                        b.worldY + b.solidArea.height / 2
+                ));
+
+                iterator.remove();
+
+                int effectScreenX = camera.worldXToScreenX(b.worldX + b.solidArea.width / 2);
+                int effectScreenY = camera.worldYToScreenY(b.worldY);
+                damageEffects.add(new damageEffect(effectScreenX, effectScreenY, "DEATH ZONE!", new Color(255, 50, 50)));
+            }
+        }
+    }
+
+    private Rectangle buildAttackHitbox(String direction) {
+        int baseX = player.worldX + player.solidArea.x;
+        int baseY = player.worldY + player.solidArea.y;
+        int boxWidth = player.solidArea.width;
+        int boxHeight = player.solidArea.height;
+
+        Rectangle hitbox;
+        switch (direction) {
+            case "left":
+                hitbox = new Rectangle(baseX - attackRange, baseY, attackRange, boxHeight);
+                break;
+            case "right":
+                hitbox = new Rectangle(baseX + boxWidth, baseY, attackRange, boxHeight);
+                break;
+            case "up":
+                hitbox = new Rectangle(baseX, baseY - attackRange, boxWidth, attackRange);
+                break;
+            case "down":
+                hitbox = new Rectangle(baseX, baseY + boxHeight, boxWidth, attackRange);
+                break;
+            default:
+                hitbox = new Rectangle(baseX + boxWidth, baseY, attackRange, boxHeight);
+                break;
+        }
+        return hitbox;
     }
 
     private void updateBotSpeeds() {
@@ -770,16 +787,14 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         invincibleCounter = 0;
 
         player.setDefaultValue();
-        player.rotationAngle = 0;
         player.canMove = true;
 
         keyH.resetAllKeys();
 
-        // reset hole fall
-        activeHoleBottomY = -1;
-        player.resetHoleFall();
+        winStartTime = 0;
+        winBoardShown = false;
 
-        spawnBots();
+//        spawnBots();
         lastBotSpawnTime = System.currentTimeMillis();
         botsKilled = 0;
 
@@ -799,7 +814,13 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         initialBotsSpawned = 0;
         lastInitialBotSpawnTime = 0;
 
+        // Reset camera về vị trí player từ gamePanel thứ hai
+        if (camera != null) {
+            camera.centerOnPlayer();
+        }
+
         if (loseMusic != null) loseMusic.stop();
+        if (winMusic != null) winMusic.stop();
         if (bgMusic != null) {
             bgMusic.stop();
             bgMusic.playLoop();
@@ -832,8 +853,8 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                     iterator.remove();
                     botsKilled++;
                 }
-                int effectScreenX = b.worldX - player.worldX + player.screenX + b.solidArea.width / 2;
-                int effectScreenY = b.worldY - player.worldY + player.screenY;
+                int effectScreenX = camera.worldXToScreenX(b.worldX + b.solidArea.width / 2);
+                int effectScreenY = camera.worldYToScreenY(b.worldY);
                 damageEffects.add(new damageEffect(effectScreenX, effectScreenY, "+1", new Color(50, 200, 50)));
             }
         }
@@ -856,30 +877,51 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
             if (backgroundImage != null) {
                 g2.drawImage(backgroundImage, 0, 0, width, height, null);
             } else {
-                g2.setColor(new Color(92, 201, 141));
+                g2.setColor(new Color(37, 150, 190));
                 g2.fillRect(0, 0, width, height);
             }
 
-            tileM.draw(g2);
+            // Vẽ tile map với camera offset
+            tileM.draw(g2, camera.worldX, camera.worldY);
 
-            for (bot b : bots) b.draw(g2);
 
-            player.draw(g2);
+
+
+            // Vẽ bot với camera offset
+            for (bot b : bots) {
+                int screenX = camera.worldXToScreenX(b.worldX);
+                int screenY = camera.worldYToScreenY(b.worldY);
+                b.draw(g2, screenX, screenY);
+            }
+
+            // Vẽ player với camera offset
+            int playerScreenX = camera.worldXToScreenX(player.worldX);
+            int playerScreenY = camera.worldYToScreenY(player.worldY);
+            player.draw(g2, playerScreenX, playerScreenY);
 
             for (AttackEffect effect : attackEffects) {
-                effect.draw(g2, player.worldX, player.worldY, player.screenX, player.screenY);
+                effect.draw(g2, player.worldX, player.worldY, camera.worldXToScreenX(0), camera.worldYToScreenY(0));
             }
 
             for (DeathEffect effect : deathEffects) {
-                effect.draw(g2, player.worldX, player.worldY, player.screenX, player.screenY);
+                effect.draw(g2, player.worldX, player.worldY, camera.worldXToScreenX(0), camera.worldYToScreenY(0));
             }
 
+            // Vẽ chí phèo với camera offset
             if (chiPheo != null) chiPheo.draw(g2);
 
-            for (damageEffect effect : damageEffects) effect.draw(g2);
+            // Vẽ house
+            if (house != null) {
+                house.draw(g2);
+            }
+
+            // Vẽ Hiệu ứng damage
+            for (damageEffect effect : damageEffects) {
+                effect.draw(g2);
+            }
 
             drawPlayerLife(g2);
-            drawKillCounter(g2);
+//            drawKillCounter(g2);
 
             if (cloudImage != null) drawClouds(g2);
 
@@ -888,6 +930,46 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         }
 
         g2.dispose();
+    }
+
+    // VẼ VÙNG CHẾT VỚI HIỆU ỨNG
+    private void drawDeathZones(Graphics2D g2) {
+        Composite originalComposite = g2.getComposite();
+
+        // Đặt độ trong suốt
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
+
+        for (Rectangle deathZone : deathZones) {
+            int screenX = deathZone.x - camera.worldX;
+            int screenY = deathZone.y - camera.worldY;
+
+            // Chỉ vẽ nếu trong tầm nhìn
+            if (screenX + tileSize > 0 && screenX < width &&
+                    screenY + tileSize > 0 && screenY < height) {
+
+                // Vẽ màu đỏ với gradient
+                GradientPaint gradient = new GradientPaint(
+                        screenX, screenY, new Color(255, 0, 0, 200),
+                        screenX + tileSize, screenY + tileSize, new Color(200, 0, 0, 150)
+                );
+                g2.setPaint(gradient);
+                g2.fillRect(screenX, screenY, tileSize, tileSize);
+
+                // Vẽ viền
+                g2.setColor(new Color(150, 0, 0, 200));
+                g2.setStroke(new BasicStroke(2));
+                g2.drawRect(screenX, screenY, tileSize, tileSize);
+
+                // Vẽ dấu X
+                g2.setColor(Color.WHITE);
+                g2.setStroke(new BasicStroke(3));
+                g2.drawLine(screenX + 5, screenY + 5, screenX + tileSize - 5, screenY + tileSize - 5);
+                g2.drawLine(screenX + tileSize - 5, screenY + 5, screenX + 5, screenY + tileSize - 5);
+            }
+        }
+
+        // Khôi phục composite
+        g2.setComposite(originalComposite);
     }
 
     public void drawPlayerLife(Graphics2D g2) {
@@ -924,18 +1006,34 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
 
         g2.setFont(g2.getFont().deriveFont(Font.BOLD, 60f));
         g2.setColor(Color.RED);
-        String loseText = "YOU LOSE";
+        String loseText = "YOU DIED";
         int textWidth = g2.getFontMetrics().stringWidth(loseText);
-        g2.drawString(loseText, menuX + (menuWidth - textWidth) / 2, menuY + 130);
+        g2.drawString(loseText, menuX + (menuWidth - textWidth) / 2, menuY + 100);
+
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 18f));
+        g2.setColor(Color.BLACK);
+        String deathText = "You can not find your Chi Pheo 💔";
+        int deathWidth = g2.getFontMetrics().stringWidth(deathText);
+        g2.drawString(deathText, menuX + (menuWidth - deathWidth) / 2, menuY + 140);
 
         g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 20f));
-        g2.setColor(Color.BLACK);
         String instructionText = "Press R to Restart or ESC to Exit";
         int instWidth = g2.getFontMetrics().stringWidth(instructionText);
         g2.drawString(instructionText, menuX + (menuWidth - instWidth) / 2, menuY + 170);
     }
 
     public void drawWinScreen(Graphics2D g2) {
+        // Tính thời gian đã trôi qua kể từ khi thắng
+        long winTimeElapsed = System.currentTimeMillis() - winStartTime;
+
+        // Nếu chưa đủ 3 giây (3000ms), hiển thị ảnh winboard.png
+        if (winTimeElapsed < 3000) {
+            // Hiển thị ảnh winboard.png
+            drawWinBoard(g2, winTimeElapsed);
+            return; // Chưa hiển thị màn hình "YOU WIN!"
+        }
+
+        // Sau 3 giây, hiển thị màn hình "YOU WIN!" bình thường
         g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, width, height);
 
@@ -969,28 +1067,63 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         g2.drawString(instructionText, menuX + (menuWidth - instWidth) / 2, menuY + 200);
     }
 
-    private void drawKillCounter(Graphics2D g2) {
-        if (gameState != playState) return;
-        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 24f));
-        String text = "Killed: " + botsKilled;
+    // Phương thức vẽ ảnh winboard.png
+    private void drawWinBoard(Graphics2D g2, long elapsedTime) {
+        try {
+            // Load ảnh winboard.png
+            BufferedImage winBoardImage = ImageIO.read(getClass().getResourceAsStream("/res/ui/winboard.png"));
 
-        int padding = 10;
-        int x = 10;
-        int y = 10 + tileSize + 20;
+            // Tính toán scale để ảnh vừa với màn hình
+            int imgWidth = winBoardImage.getWidth();
+            int imgHeight = winBoardImage.getHeight();
 
-        int textWidth = g2.getFontMetrics().stringWidth(text);
-        int textHeight = g2.getFontMetrics().getHeight();
+            // Scale ảnh (có thể điều chỉnh theo ý muốn)
+            int targetWidth = Math.min(width - 100, imgWidth);
+            int targetHeight = (int) (targetWidth * ((float)imgHeight / imgWidth));
 
-        g2.setColor(new Color(0, 0, 0, 140));
-        g2.fillRoundRect(x - padding, y - textHeight, textWidth + padding * 2, textHeight + padding / 2, 8, 8);
+            if (targetHeight > height - 100) {
+                targetHeight = height - 100;
+                targetWidth = (int) (targetHeight * ((float)imgWidth / imgHeight));
+            }
 
-        g2.setColor(Color.WHITE);
-        g2.drawString(text, x, y);
+            int x = (width - targetWidth) / 2;
+            int y = (height - targetHeight) / 2;
+
+            // Thêm hiệu ứng fade in trong 0.5s đầu
+            float alpha = 1.0f;
+            if (elapsedTime < 500) {
+                alpha = elapsedTime / 500.0f; // Từ 0 đến 1
+            }
+
+            Composite originalComposite = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+
+            // Vẽ nền đen mờ
+            g2.setColor(new Color(0, 0, 0, (int)(150 * alpha)));
+            g2.fillRect(0, 0, width, height);
+
+            // Vẽ ảnh winboard
+            g2.drawImage(winBoardImage, x, y, targetWidth, targetHeight, null);
+
+            g2.setComposite(originalComposite);
+        } catch (Exception e) {
+            // Nếu không tìm thấy ảnh, vẽ màn hình đơn giản
+            e.printStackTrace();
+            g2.setColor(new Color(0, 0, 0, 200));
+            g2.fillRect(0, 0, width, height);
+
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, 60f));
+            g2.setColor(Color.GREEN);
+            g2.drawString("VICTORY!", width/2 - 150, height/2);
+
+            g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 30f));
+            g2.setColor(Color.WHITE);
+            g2.drawString("Loading win screen...", width/2 - 120, height/2 + 60);
+        }
     }
-
     private void drawClouds(Graphics2D g2) {
-        int camX = player.worldX - player.screenX;
-        int camY = player.worldY - player.screenY;
+        int camX = camera.worldX;
+        int camY = camera.worldY;
         float parallax = 0.25f;
 
         int[][] clouds = new int[][]{
@@ -1046,15 +1179,21 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         gameOver = true;
         showGameOverMenu = true;
         if (bgMusic != null) bgMusic.stop();
+        if (winMusic != null) winMusic.stop();
         if (loseMusic != null) loseMusic.playOnce();
-        System.out.println("Game over menu should be visible now");
+        System.out.println("Game over - Death zone!");
     }
 
     private void triggerGameWin() {
         gameWon = true;
         showWinMenu = true;
         gameState = winState;
+        winStartTime = System.currentTimeMillis(); // Ghi lại thời điểm thắng
+        winBoardShown = false;
+
         if (bgMusic != null) bgMusic.stop();
+        if (loseMusic != null) loseMusic.stop();
+        if (winMusic != null) winMusic.playOnce();
         System.out.println("Game won! Survival time: " + currentTimeElapsed + " seconds");
     }
 
