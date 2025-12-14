@@ -1,6 +1,7 @@
 package Game_2D;
 
 import entity.ChiPheo;
+import entity.House;
 import entity.player;
 import tile.tileManager;
 import entity.bot;
@@ -13,15 +14,20 @@ import java.io.IOException;
 
 public class gamePanel extends JPanel implements Runnable {
     public ChiPheo chiPheo;
+    public House house;
+
+
     Image cloudImage;
     BackgroundMusic bgMusic;
     BackgroundMusic loseMusic;
+    BackgroundMusic winMusic;
     final int orgsSize = 16;
     final int scale = 2;
     public final int tileSize = orgsSize * scale * 2; // = 64
 
     public int maxColumn = 18;
     public int maxRow = 9;
+
 
     public final int width = tileSize * maxColumn;   // 1024
     public final int height = tileSize * maxRow;
@@ -64,6 +70,7 @@ public class gamePanel extends JPanel implements Runnable {
     public gamePanel() {
         bgMusic = new BackgroundMusic("/music/MusicBackground.wav");
         loseMusic = new BackgroundMusic("/music/over_ending.wav");
+        winMusic = new BackgroundMusic("/music/winMusic.wav");
         bgMusic.playLoop();
 
         try {
@@ -111,6 +118,15 @@ public class gamePanel extends JPanel implements Runnable {
         heartIcon = setup("chao_hanh");
     }
 
+    // Trong gamePanel.java
+    public int getScreenX(int worldX) {
+        return camera.worldXToScreenX(worldX);
+    }
+
+    public int getScreenY(int worldY) {
+        return camera.worldYToScreenY(worldY);
+    }
+
     public BufferedImage setup(String imagePath) {
         utiltityTool uTool = new utiltityTool();
         BufferedImage image = null;
@@ -130,6 +146,7 @@ public class gamePanel extends JPanel implements Runnable {
         bots.add(new bot(this, tileSize * 26, tileSize * 14));
         // Vị trí chí phèo
         chiPheo = new ChiPheo(this, tileSize * 17, tileSize * 11 + 15);
+        house = new House(this, tileSize * 6, tileSize * 8+20);
     }
 
     public void startGameThread() {
@@ -299,6 +316,8 @@ public class gamePanel extends JPanel implements Runnable {
                 chiPheo.draw(g2, chiPheoScreenX+tileSize*32, chiPheoScreenY-tileSize*2);
             }
 
+            house.draw(g2);
+
             // Vẽ Hiệu ứng damage (đã là screen coordinates)
             for (damageEffect effect : damageEffects) {
                 effect.draw(g2);
@@ -373,13 +392,6 @@ public class gamePanel extends JPanel implements Runnable {
 
     }
 
-    public int getScreenX(int worldX) {
-        return camera.worldXToScreenX(worldX);
-    }
-
-    public int getScreenY(int worldY) {
-        return camera.worldYToScreenY(worldY);
-    }
 
 }
 
