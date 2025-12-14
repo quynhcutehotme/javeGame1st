@@ -118,7 +118,7 @@ public class bot extends entity {
 
     private void loadSprite() { /* no-op; using vector drawing now */ }
     
-    // Phương thức update chính
+    // PhÆ°Æ¡ng thá»©c update chÃ­nh
     public void update() {
         aiCounter++;
         
@@ -135,7 +135,7 @@ public class bot extends entity {
             avoidanceDirection = calculateAvoidanceDirection();
         }
         
-        // 2. Logic Trạng thái (FSM)
+        // 2. Logic Tráº¡ng thÃ¡i (FSM)
         switch (currentState) {
             case PATROL:
                 if (playerInRange) {
@@ -152,7 +152,7 @@ public class bot extends entity {
                 if (alertCounter >= alertDuration) {
                     currentState = BotState.CHASE;
                 }
-                // Hướng về phía người chơi (chỉ theo trục X để không bay lên trời)
+                // HÆ°á»›ng vá» phÃ­a ngÆ°á»i chÆ¡i (chá»‰ theo trá»¥c X Ä‘á»ƒ khÃ´ng bay lÃªn trá»i)
                 setDirectionTowardHorizontal(dx);
                 break;
 
@@ -178,7 +178,7 @@ public class bot extends entity {
                     currentState = BotState.PATROL;
                     break;
                 }
-                // Di chuyển về vị trí cuối cùng của player
+                // Di chuyá»ƒn vá» vá»‹ trÃ­ cuá»‘i cÃ¹ng cá»§a player
                 // Move toward last known player X only (horizontal search)
                 setDirectionTowardHorizontal(lastPlayerX - worldX);
                 break;
@@ -215,7 +215,7 @@ public class bot extends entity {
             currentSpeed = (int)Math.ceil(baseSpeed * 2.0f); // gentler sprint
         }
         
-        // 6. Kiểm tra va chạm và di chuyển
+        // 6. Kiá»ƒm tra va cháº¡m vÃ  di chuyá»ƒn
         collisionOn = false;
         gp.cChecker.checkTile(this);
         
@@ -252,7 +252,7 @@ public class bot extends entity {
             }
         } else if (collisionOn) {
             stuckCounter++;
-            // Khi va chạm, chuyển hướng ngẫu nhiên để không bị kẹt
+            // Khi va cháº¡m, chuyá»ƒn hÆ°á»›ng ngáº«u nhiÃªn Ä‘á»ƒ khÃ´ng bá»‹ káº¹t
             if (currentState != BotState.CHASE) {
                 patrolMovement(); 
             }
@@ -263,7 +263,7 @@ public class bot extends entity {
             }
         }
         
-        // 6. Kiểm tra va chạm với người chơi và gây sát thương
+        // 6. Kiá»ƒm tra va cháº¡m vá»›i ngÆ°á»i chÆ¡i vÃ  gÃ¢y sÃ¡t thÆ°Æ¡ng
         checkPlayerCollision();
     }
     
@@ -325,7 +325,7 @@ public class bot extends entity {
         final int Y_TOLERANCE_SQ = Y_TOLERANCE * Y_TOLERANCE;
         final int MAX_NUDGE = 8; // Maximum nudge per frame to prevent jerky movement
         
-        // Process each pair of bots once (O(n²) but lightweight)
+        // Process each pair of bots once (O(nÂ²) but lightweight)
         for (int i = 0; i < allBots.size(); i++) {
             bot botA = allBots.get(i);
             
@@ -514,16 +514,15 @@ public class bot extends entity {
     }
     
     private void checkPlayerCollision() {
-        // Tạo vùng va chạm tạm thời để kiểm tra
+
         Rectangle botHitbox = new Rectangle(worldX + solidArea.x, worldY + solidArea.y, solidArea.width, solidArea.height);
         Rectangle playerHitbox = new Rectangle(gp.player.worldX + gp.player.solidArea.x, 
                                                gp.player.worldY + gp.player.solidArea.y, 
                                                gp.player.solidArea.width, 
                                                gp.player.solidArea.height);
 
-        // Kiểm tra xem bot có chạm vào player không
-        if (botHitbox.intersects(playerHitbox)) {
-            gp.player.takeDamage(this); // Gây sát thương
+         if (botHitbox.intersects(playerHitbox)) {
+            gp.player.takeDamage(this); 
         }
     }
 
@@ -535,9 +534,9 @@ public class bot extends entity {
         return health <= 0;
     }
 
-    // Phương thức draw (giữ nguyên)
+    // PhÆ°Æ¡ng thá»©c draw (giá»¯ nguyÃªn)
     public void draw(Graphics2D g2) {
-        // ... (Giữ nguyên phương thức draw)
+        // ... (Giá»¯ nguyÃªn phÆ°Æ¡ng thá»©c draw)
         int screenX = worldX - gp.player.worldX + gp.player.screenX;
         int screenY = worldY - gp.player.worldY + gp.player.screenY;
 
@@ -601,27 +600,27 @@ public class bot extends entity {
         }
     }
 
-	public void updateAI(int playerX, int playerY) {
-        // Nếu đang ở chế độ di chuyển sang phải (như Dinosaur game)
-        if (isMovingRight) {
-            direction = "right";
-            worldX += speed;
-            
-            // Kiểm tra nếu bot đã đi quá xa bên phải thì xóa
-            if (worldX > gp.player.worldX + gp.width) {
-                gp.bots.remove(this);
+        public boolean updateAI(int playerX, int playerY) {
+            if (isMovingRight) {
+                direction = "right";
+                worldX += speed;
+            } else {
+                // ... existing AI code ...
             }
-        } else {
-            // AI cũ theo player (giữ lại cho các tính năng khác)
-            // ... existing AI code ...
-        }
-        
-        // Update animation
-        spriteCounter++;
-        if (spriteCounter > 12) {
-            if (spriteNum == 1) spriteNum = 2;
-            else if (spriteNum == 2) spriteNum = 1;
-            spriteCounter = 0;
-        }
-    }
+
+            // Update animation (LUÔN chạy mỗi frame)
+            spriteCounter++;
+            if (spriteCounter > 12) {
+                if (spriteNum == 1) spriteNum = 2;
+                else if (spriteNum == 2) spriteNum = 1;
+                spriteCounter = 0;
+            }
+
+            // Despawn theo % map (chỉ khi bot đang chạy sang phải)
+            if (isMovingRight) {
+                return worldX > gp.worldWidth * 0.15; // 0.15 = 15% map width
+            }
+
+            return false;
+}
 }

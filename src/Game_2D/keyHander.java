@@ -134,7 +134,7 @@ public class keyHander implements KeyListener {
         }
         
         // --- HANDLE GAME OVER/WIN STATES THROUGH MENU VISIBILITY ---
-        // Kiểm tra xem có menu nào đang hiển thị không
+        // Kiß╗âm tra xem c├│ menu n├áo ─æang hiß╗ân thß╗ï kh├┤ng
         else if (gp.isGameOverMenuVisible() || gp.isWinMenuVisible()) {
             if (code == KeyEvent.VK_R) {
                 restartPress = true;
