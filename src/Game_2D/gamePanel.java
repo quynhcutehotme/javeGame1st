@@ -25,7 +25,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     BackgroundMusic loseMusic;
     BackgroundMusic winMusic;
 
-    // Camera từ gamePanel thứ hai
     public Camera camera;
 
     final int orgsSize = 16;
@@ -38,7 +37,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     public final int width = tileSize * maxColumn;   // 1024
     public final int height = tileSize * maxRow;
 
-    // Kích thước map thực tế
     public final int maxWorldCol = 200;
     public final int maxWorldRow = 200;
     public final int worldWidth = tileSize * maxWorldCol;
@@ -47,7 +45,7 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     public BufferedImage backgroundImage;
     int FPS = 60;
 
-    private long winStartTime = 0; // Thời điểm bắt đầu thắng
+    private long winStartTime = 0;
     private boolean winBoardShown = false;
 
     public UI ui = new UI(this);
@@ -69,7 +67,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     private final java.util.List<DeathEffect> deathEffects = new java.util.ArrayList<>();
     private final Random random = new Random();
 
-    // PLAYER SETTINGS
     public int playerHp = 3;
     public BufferedImage heartIcon;
     private boolean playerInvincible = false;
@@ -81,31 +78,28 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     private boolean gameWon = false;
     private boolean showWinMenu = false;
 
-    // Timer for scaling difficulty
     private long gameStartTime;
     private long currentTimeElapsed = 0;
     private long survivalTimeSeconds = 15;
 
-    // tracking spawn ban đầu
+    // tracking spawn ban đầu (giữ biến nhưng không dùng spawn theo thời gian nữa)
     private int initialBotsSpawned = 0;
     private final int maxInitialBots = 3;
     private long lastInitialBotSpawnTime = 0;
-    private final long initialSpawnInterval = 3500; // 3.5 giây
+    private final long initialSpawnInterval = 6500;
 
-    // Spawn pacing
-    private final long maxSpawnIntervalMs = 5000;
-    private final long minSpawnIntervalMs = 3500;
+    private final long maxSpawnIntervalMs = 10000;
+    private final long minSpawnIntervalMs = 7000;
     private final long spawnRampDurationSec = 30;
     private long lastBotSpawnTime = System.currentTimeMillis();
     private int botsKilled = 0;
     private final int killsToWin = 5;
     private final int maxBotsOnField = 6;
 
-    // Bot speed scaling
+    // (3)(4)(5) áp dụng: bỏ spawn theo thời gian nên các biến speed scaling không cần dùng
     public final int baseBotSpeed = 3;
     private final float maxSpeedMultiplier = 2.2f;
 
-    // Attack handling
     private boolean attackRequested = false;
     private int attackCooldownCounter = 0;
     private final int attackCooldownFrames = 10;
@@ -114,24 +108,18 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     private String queuedAttackDirection = null;
     private final int attackRange = tileSize * 2;
 
-    // BOT SPAWN SETTINGS - NHƯ DINO GAME
-    private final int spawnXPosition = -tileSize * 2; // start a bit before the map
-    private final int offscreenDespawnX = worldWidth + tileSize * 2; // let bots run entire map
+    private final int spawnXPosition = -tileSize * 2;
+    private final int offscreenDespawnX = worldWidth + tileSize * 2;
 
-    // STOMP MECHANISM VARIABLES
     private boolean stompActive = false;
     private int stompDamage = 1;
     private final int stompBounceForce = 7;
 
-    // VÙNG CHẾT THAY VÌ HỐ - CHẠM VÀO LÀ CHẾT
     public final java.util.List<Rectangle> deathZones = new java.util.ArrayList<>();
-    public final int deathZoneTileId = 8; // ID tile vùng chết
-//    public final Color deathZoneColor = new Color(255, 0, 0, 150); // Màu đỏ trong suốt
+    public final int deathZoneTileId = 8;
 
-    // Mouse handler từ gamePanel thứ hai
     private mouseHandler mouseH;
 
-    // Constructor
     public gamePanel() {
         bgMusic = new BackgroundMusic("/music/MusicBackground.wav");
         loseMusic = new BackgroundMusic("/music/over_ending.wav");
@@ -139,7 +127,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         bgMusic.playLoop();
 
         try {
-            // Thử cả hai cách load background
             InputStream bgStream = getClass().getResourceAsStream("/res/map/background.png");
             if (bgStream == null) {
                 bgStream = getClass().getResourceAsStream("/res/ui/chongchay.png");
@@ -162,18 +149,16 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         }
 
         this.setPreferredSize(new Dimension(width, height));
-        this.setBackground(new Color(37, 150, 190)); // Màu từ gamePanel thứ hai
+        this.setBackground(new Color(37, 150, 190));
         this.setDoubleBuffered(true);
         this.addKeyListener(keyH);
         this.addMouseListener(this);
 
-        // Thêm mouseHandler từ gamePanel thứ hai
         mouseH = new mouseHandler(this);
         this.addMouseListener(mouseH);
 
         this.setFocusable(true);
 
-        // focus listener để reset keys
         this.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusLost(java.awt.event.FocusEvent e) {
@@ -183,12 +168,14 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
 
         gameState = titleState;
 
-        // KHỞI TẠO CAMERA từ gamePanel thứ hai
         camera = new Camera(this);
 
         getPlayerImage();
-        detectDeathZones(); // PHÁT HIỆN VÙNG CHẾT
-       //spawnBots();
+        detectDeathZones();
+
+        // ✅ (3): spawn đúng 3 bot cố định, không spawn thêm
+        spawnBots();
+
         spawnChiPheo();
 
         try {
@@ -209,7 +196,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         lastBotSpawnTime = System.currentTimeMillis();
     }
 
-    // Phương thức camera từ gamePanel thứ hai
     public int getScreenX(int worldX) {
         return camera.worldXToScreenX(worldX);
     }
@@ -219,15 +205,12 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     }
 
     private int getBotSpawnY() {
-        // spawn ngang mặt đất của player + 1 tile
         return player.getGroundLevel() + tileSize * 1;
     }
 
-    // PHÁT HIỆN VÙNG CHẾT TRÊN MAP - CHẠM VÀO LÀ DIE
     private void detectDeathZones() {
         deathZones.clear();
 
-        // Dùng trực tiếp mapTileNum (public) để không cần sửa tileManager
         int[][] mapTileNum = tileM.mapTileNum;
 
         for (int row = 0; row < maxWorldRow; row++) {
@@ -247,7 +230,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         System.out.println("Detected " + deathZones.size() + " death zones");
     }
 
-    // KIỂM TRA PLAYER CÓ CHẠM VÀO VÙNG CHẾT KHÔNG
     private boolean isPlayerInDeathZone() {
         if (gameOver || gameWon) return false;
 
@@ -266,7 +248,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         return false;
     }
 
-    // KIỂM TRA BOT CÓ CHẠM VÀO VÙNG CHẾT KHÔNG
     private boolean isBotInDeathZone(bot b) {
         Rectangle botRect = new Rectangle(
                 b.worldX + b.solidArea.x,
@@ -299,94 +280,56 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         return image;
     }
 
+    // ✅ (3)(4)(5): Spawn đúng 3 bot cố định + mỗi con đi qua-lại trong zone riêng
     private void spawnBots() {
         bots.clear();
 
+        // house giữ nguyên
+        house = new House(this, tileSize * 1, tileSize * 8 + 20);
 
+        int y = getBotSpawnY();
 
+        bot b1 = new bot(this, tileSize * 10, y, bot.BotType.GREEN);
+        b1.direction = "left";
+        b1.setPatrolRangePx(tileSize * 4);   // đi ±1 tile
 
-        // Thêm house từ gamePanel thứ hai
-        house = new House(this, tileSize * 6, tileSize * 8 + 20);
+        bot b2 = new bot(this, tileSize * 25, y, bot.BotType.PURPLE);
+        b2.direction = "right";
+        b2.setPatrolRangePx(tileSize * 3);   // đi ±3 tile
 
-        initialBotsSpawned = 0;
+        bot b3 = new bot(this, tileSize * 38, y, bot.BotType.YELLOW);
+        b3.direction = "left";
+        b3.setPatrolRangePx(tileSize * 1);   // đi ±1 tile
+
+        bot b4 = new bot(this, tileSize * 44, y, bot.BotType.GREEN); // 👈 vị trí spawn
+        b4.direction = "right";
+        b4.setPatrolRangePx(tileSize * 2);                           // 👈 quãng đường đi
+
+        bot b5 = new bot(this, tileSize * 60, y, bot.BotType.PURPLE); // 👈 vị trí spawn
+        b5.direction = "right";
+        b5.setPatrolRangePx(tileSize * 4);
+
+        bot b6 = new bot(this, tileSize * 70, y, bot.BotType.YELLOW); // 👈 vị trí spawn
+        b6.direction = "left";
+        b6.setPatrolRangePx(tileSize * 4);
+
+        bots.add(b1);
+        bots.add(b2);
+        bots.add(b3);
+        bots.add(b4);
+        bots.add(b5);
+        bots.add(b6);
+
+        // chặn spawn khác
+        initialBotsSpawned = 3;
         lastInitialBotSpawnTime = 0;
     }
 
     private void spawnChiPheo() {
-        int chiPheoSpawnX =  tileSize * 50;
-        int chiPheoSpawnY = tileSize * 9 +15 ;
+        int chiPheoSpawnX = tileSize * 50;
+        int chiPheoSpawnY = tileSize * 9 + 15;
 
         chiPheo = new ChiPheo(this, chiPheoSpawnX, chiPheoSpawnY);
-    }
-
-
-
-
-
-    private void spawnInitialBot() {
-        if (initialBotsSpawned >= maxInitialBots) return;
-
-        bot.BotType type;
-        int index = initialBotsSpawned;
-
-        switch (index) {
-            case 0:
-                type = bot.BotType.GREEN;
-                break;
-            case 1:
-                type = bot.BotType.PURPLE;
-                break;
-            case 2:
-                type = bot.BotType.YELLOW;
-                break;
-            default:
-                return;
-        }
-
-        int spawnX = spawnXPosition;
-        int spawnY = getBotSpawnY();
-
-        // Đảm bảo không spawn vào vùng chết
-        for (Rectangle deathZone : deathZones) {
-            Rectangle spawnRect = new Rectangle(spawnX, spawnY, tileSize, tileSize);
-            if (spawnRect.intersects(deathZone)) {
-                spawnY -= tileSize;
-                break;
-            }
-        }
-
-        bot newBot = new bot(this, spawnX, spawnY, type);
-        newBot.direction = "right";
-        newBot.isMovingRight = true;
-
-        bots.add(newBot);
-        initialBotsSpawned++;
-        lastInitialBotSpawnTime = System.currentTimeMillis();
-    }
-
-    private void spawnBotAtRandomPosition() {
-        if (bots.size() >= maxBotsOnField) return;
-
-        int spawnX = spawnXPosition;
-        int spawnY = getBotSpawnY();
-
-        // Đảm bảo không spawn vào vùng chết
-        for (Rectangle deathZone : deathZones) {
-            Rectangle spawnRect = new Rectangle(spawnX, spawnY, tileSize, tileSize);
-            if (spawnRect.intersects(deathZone)) {
-                spawnY -= tileSize;
-                break;
-            }
-        }
-
-        bot.BotType[] types = bot.BotType.values();
-        bot.BotType type = types[random.nextInt(types.length)];
-
-        bot newBot = new bot(this, spawnX, spawnY, type);
-        newBot.direction = "right";
-        newBot.isMovingRight = true;
-
-        bots.add(newBot);
     }
 
     public void startGameThread() {
@@ -565,40 +508,9 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 lastBotSpawnTime = System.currentTimeMillis();
             }
 
-            // CẬP NHẬT CAMERA TRƯỚC
             camera.update();
 
-            long currentTime = System.currentTimeMillis();
-
-            // Spawn initial bots
-            if (initialBotsSpawned < maxInitialBots) {
-                if (initialBotsSpawned == 0) {
-                    spawnInitialBot();
-                } else if (currentTime - lastInitialBotSpawnTime >= initialSpawnInterval) {
-                    spawnInitialBot();
-                    if (initialBotsSpawned >= maxInitialBots) {
-                        lastBotSpawnTime = System.currentTimeMillis();
-                    }
-                }
-            }
-
-            currentTimeElapsed = (currentTime - gameStartTime) / 1000;
-
-            updateBotSpeeds();
-
-            // Spawn new bots after initial
-            long now = System.currentTimeMillis();
-            long currentSpawnInterval = getCurrentSpawnIntervalMs();
-            long timeSinceLastInitialBot = now - lastInitialBotSpawnTime;
-            long minDelayAfterLastInitialBot = 2000;
-
-            if (initialBotsSpawned >= maxInitialBots
-                    && timeSinceLastInitialBot >= minDelayAfterLastInitialBot
-                    && now - lastBotSpawnTime >= currentSpawnInterval
-                    && bots.size() < maxBotsOnField) {
-                spawnBotAtRandomPosition();
-                lastBotSpawnTime = now;
-            }
+            // ✅ (3): KHÔNG spawn theo thời gian nữa (đã spawn cố định trong spawnBots)
 
             if (attackCooldownCounter > 0) attackCooldownCounter--;
 
@@ -619,16 +531,14 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 }
             }
 
-            // >>>>> LOGIC MỚI: KIỂM TRA CHẠM VÙNG CHẾT TRƯỚC
             if (isPlayerInDeathZone()) {
                 System.out.println("Player touched death zone! Game over!");
                 triggerGameOver();
-                return; // Không cần update tiếp
+                return;
             }
 
             player.update();
 
-            // Kiểm tra bot chạm vùng chết
             checkBotDeathZone();
 
             if (chiPheo != null) chiPheo.update();
@@ -646,7 +556,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                     continue;
                 }
 
-                // fallback: nếu vẫn muốn remove khi ra quá xa
                 if (b.worldX > offscreenDespawnX) {
                     iterator.remove();
                 }
@@ -667,7 +576,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         }
     }
 
-    // KIỂM TRA BOT CHẠM VÙNG CHẾT
     private void checkBotDeathZone() {
         java.util.Iterator<bot> iterator = bots.iterator();
         while (iterator.hasNext()) {
@@ -713,19 +621,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 break;
         }
         return hitbox;
-    }
-
-    private void updateBotSpeeds() {
-        float progress = Math.min(1.0f, (float) currentTimeElapsed / survivalTimeSeconds);
-        float speedMultiplier = 1.0f + (maxSpeedMultiplier - 1.0f) * progress;
-
-        int newSpeed = Math.round(baseBotSpeed * speedMultiplier);
-        for (bot b : bots) {
-            b.speed = newSpeed;
-            if (b.botType == bot.BotType.YELLOW) {
-                b.baseSpeed = newSpeed;
-            }
-        }
     }
 
     private long getCurrentSpawnIntervalMs() {
@@ -794,7 +689,8 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         winStartTime = 0;
         winBoardShown = false;
 
-//        spawnBots();
+        // ✅ reset bots cố định
+        spawnBots();
         lastBotSpawnTime = System.currentTimeMillis();
         botsKilled = 0;
 
@@ -811,10 +707,9 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         currentTimeElapsed = 0;
         stompActive = false;
 
-        initialBotsSpawned = 0;
+        initialBotsSpawned = 3;
         lastInitialBotSpawnTime = 0;
 
-        // Reset camera về vị trí player từ gamePanel thứ hai
         if (camera != null) {
             camera.centerOnPlayer();
         }
@@ -881,20 +776,14 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 g2.fillRect(0, 0, width, height);
             }
 
-            // Vẽ tile map với camera offset
             tileM.draw(g2, camera.worldX, camera.worldY);
 
-
-
-
-            // Vẽ bot với camera offset
             for (bot b : bots) {
                 int screenX = camera.worldXToScreenX(b.worldX);
                 int screenY = camera.worldYToScreenY(b.worldY);
                 b.draw(g2, screenX, screenY);
             }
 
-            // Vẽ player với camera offset
             int playerScreenX = camera.worldXToScreenX(player.worldX);
             int playerScreenY = camera.worldYToScreenY(player.worldY);
             player.draw(g2, playerScreenX, playerScreenY);
@@ -907,21 +796,17 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
                 effect.draw(g2, player.worldX, player.worldY, camera.worldXToScreenX(0), camera.worldYToScreenY(0));
             }
 
-            // Vẽ chí phèo với camera offset
             if (chiPheo != null) chiPheo.draw(g2);
 
-            // Vẽ house
             if (house != null) {
                 house.draw(g2);
             }
 
-            // Vẽ Hiệu ứng damage
             for (damageEffect effect : damageEffects) {
                 effect.draw(g2);
             }
 
             drawPlayerLife(g2);
-//            drawKillCounter(g2);
 
             if (cloudImage != null) drawClouds(g2);
 
@@ -930,46 +815,6 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         }
 
         g2.dispose();
-    }
-
-    // VẼ VÙNG CHẾT VỚI HIỆU ỨNG
-    private void drawDeathZones(Graphics2D g2) {
-        Composite originalComposite = g2.getComposite();
-
-        // Đặt độ trong suốt
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
-
-        for (Rectangle deathZone : deathZones) {
-            int screenX = deathZone.x - camera.worldX;
-            int screenY = deathZone.y - camera.worldY;
-
-            // Chỉ vẽ nếu trong tầm nhìn
-            if (screenX + tileSize > 0 && screenX < width &&
-                    screenY + tileSize > 0 && screenY < height) {
-
-                // Vẽ màu đỏ với gradient
-                GradientPaint gradient = new GradientPaint(
-                        screenX, screenY, new Color(255, 0, 0, 200),
-                        screenX + tileSize, screenY + tileSize, new Color(200, 0, 0, 150)
-                );
-                g2.setPaint(gradient);
-                g2.fillRect(screenX, screenY, tileSize, tileSize);
-
-                // Vẽ viền
-                g2.setColor(new Color(150, 0, 0, 200));
-                g2.setStroke(new BasicStroke(2));
-                g2.drawRect(screenX, screenY, tileSize, tileSize);
-
-                // Vẽ dấu X
-                g2.setColor(Color.WHITE);
-                g2.setStroke(new BasicStroke(3));
-                g2.drawLine(screenX + 5, screenY + 5, screenX + tileSize - 5, screenY + tileSize - 5);
-                g2.drawLine(screenX + tileSize - 5, screenY + 5, screenX + 5, screenY + tileSize - 5);
-            }
-        }
-
-        // Khôi phục composite
-        g2.setComposite(originalComposite);
     }
 
     public void drawPlayerLife(Graphics2D g2) {
@@ -1023,17 +868,13 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
     }
 
     public void drawWinScreen(Graphics2D g2) {
-        // Tính thời gian đã trôi qua kể từ khi thắng
         long winTimeElapsed = System.currentTimeMillis() - winStartTime;
 
-        // Nếu chưa đủ 3 giây (3000ms), hiển thị ảnh winboard.png
         if (winTimeElapsed < 3000) {
-            // Hiển thị ảnh winboard.png
             drawWinBoard(g2, winTimeElapsed);
-            return; // Chưa hiển thị màn hình "YOU WIN!"
+            return;
         }
 
-        // Sau 3 giây, hiển thị màn hình "YOU WIN!" bình thường
         g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, width, height);
 
@@ -1067,60 +908,53 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         g2.drawString(instructionText, menuX + (menuWidth - instWidth) / 2, menuY + 200);
     }
 
-    // Phương thức vẽ ảnh winboard.png
     private void drawWinBoard(Graphics2D g2, long elapsedTime) {
         try {
-            // Load ảnh winboard.png
             BufferedImage winBoardImage = ImageIO.read(getClass().getResourceAsStream("/res/ui/winboard.png"));
 
-            // Tính toán scale để ảnh vừa với màn hình
             int imgWidth = winBoardImage.getWidth();
             int imgHeight = winBoardImage.getHeight();
 
-            // Scale ảnh (có thể điều chỉnh theo ý muốn)
             int targetWidth = Math.min(width - 100, imgWidth);
-            int targetHeight = (int) (targetWidth * ((float)imgHeight / imgWidth));
+            int targetHeight = (int) (targetWidth * ((float) imgHeight / imgWidth));
 
             if (targetHeight > height - 100) {
                 targetHeight = height - 100;
-                targetWidth = (int) (targetHeight * ((float)imgWidth / imgHeight));
+                targetWidth = (int) (targetHeight * ((float) imgWidth / imgHeight));
             }
 
             int x = (width - targetWidth) / 2;
             int y = (height - targetHeight) / 2;
 
-            // Thêm hiệu ứng fade in trong 0.5s đầu
             float alpha = 1.0f;
             if (elapsedTime < 500) {
-                alpha = elapsedTime / 500.0f; // Từ 0 đến 1
+                alpha = elapsedTime / 500.0f;
             }
 
             Composite originalComposite = g2.getComposite();
             g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 
-            // Vẽ nền đen mờ
-            g2.setColor(new Color(0, 0, 0, (int)(150 * alpha)));
+            g2.setColor(new Color(0, 0, 0, (int) (150 * alpha)));
             g2.fillRect(0, 0, width, height);
 
-            // Vẽ ảnh winboard
             g2.drawImage(winBoardImage, x, y, targetWidth, targetHeight, null);
 
             g2.setComposite(originalComposite);
         } catch (Exception e) {
-            // Nếu không tìm thấy ảnh, vẽ màn hình đơn giản
             e.printStackTrace();
             g2.setColor(new Color(0, 0, 0, 200));
             g2.fillRect(0, 0, width, height);
 
             g2.setFont(g2.getFont().deriveFont(Font.BOLD, 60f));
             g2.setColor(Color.GREEN);
-            g2.drawString("VICTORY!", width/2 - 150, height/2);
+            g2.drawString("VICTORY!", width / 2 - 150, height / 2);
 
             g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 30f));
             g2.setColor(Color.WHITE);
-            g2.drawString("Loading win screen...", width/2 - 120, height/2 + 60);
+            g2.drawString("Loading win screen...", width / 2 - 120, height / 2 + 60);
         }
     }
+
     private void drawClouds(Graphics2D g2) {
         int camX = camera.worldX;
         int camY = camera.worldY;
@@ -1152,28 +986,16 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         }
     }
 
-    @Override
-    public void mouseClicked(MouseEvent e) {
-    }
-
+    @Override public void mouseClicked(MouseEvent e) {}
     @Override
     public void mousePressed(MouseEvent e) {
         if (e.getButton() == MouseEvent.BUTTON1 && gameState == playState && !gameOver && !gameWon) {
             queueAttack();
         }
     }
-
-    @Override
-    public void mouseReleased(MouseEvent e) {
-    }
-
-    @Override
-    public void mouseEntered(MouseEvent e) {
-    }
-
-    @Override
-    public void mouseExited(MouseEvent e) {
-    }
+    @Override public void mouseReleased(MouseEvent e) {}
+    @Override public void mouseEntered(MouseEvent e) {}
+    @Override public void mouseExited(MouseEvent e) {}
 
     public void triggerGameOver() {
         gameOver = true;
@@ -1188,7 +1010,7 @@ public class gamePanel extends JPanel implements Runnable, MouseListener {
         gameWon = true;
         showWinMenu = true;
         gameState = winState;
-        winStartTime = System.currentTimeMillis(); // Ghi lại thời điểm thắng
+        winStartTime = System.currentTimeMillis();
         winBoardShown = false;
 
         if (bgMusic != null) bgMusic.stop();

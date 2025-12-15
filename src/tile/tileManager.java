@@ -2,14 +2,12 @@ package tile;
 
 import Game_2D.gamePanel;
 import Game_2D.utiltityTool;
-
-import javax.imageio.ImageIO;
 import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import javax.imageio.ImageIO;
 
 public class tileManager {
     gamePanel gp;
@@ -23,7 +21,7 @@ public class tileManager {
         mapTileNum = new int[gp.maxWorldCol][gp.maxWorldRow];
 
         getTileImage();
-        loadMap("/map/map.txt");
+        loadMap("/res/map/map.txt");
 
     }
 
@@ -45,7 +43,7 @@ public class tileManager {
 
         try{
             tile[index]= new tile();
-            tile[index].image = ImageIO.read(getClass().getResourceAsStream("/tile/" + imagePath +".png"));
+            tile[index].image = ImageIO.read(getClass().getResourceAsStream("/res/tile/" + imagePath +".png"));
             tile[index].image = uTool.scaleImage(tile[index].image, gp.tileSize, gp.tileSize);
             tile[index].collision = collision;
 

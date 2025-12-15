@@ -2,7 +2,6 @@ package entity;
 
 import Game_2D.gamePanel;
 import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.util.Random;
 
 public class bot extends entity {
@@ -63,16 +62,21 @@ public class bot extends entity {
     // SỬA: Thay vì rơi hố, chỉ cần kiểm tra vùng chết
     private boolean inDeathZone = false;
 
+    // ===== FIXED PATROL ZONE (đi qua đi lại quanh vị trí spawn) =====
+    private int patrolCenterX;
+    private int patrolMinX;
+    private int patrolMaxX;
+    private int patrolRangePx = 0; // cho phép set riêng từng bot
+
     public bot(gamePanel gp, int worldX, int worldY, BotType type) {
         this.gp = gp;
         this.botType = type;
 
-        // SỬA: Khởi tạo DETECTION_RANGE sau khi gp được set
+        // Khởi tạo detection range sau khi gp được set
         if (gp != null) {
             this.DETECTION_RANGE = gp.tileSize * 10;
             this.LOSS_RANGE = gp.tileSize * 15;
         } else {
-            // Default values if gp is null
             this.DETECTION_RANGE = 640;
             this.LOSS_RANGE = 960;
         }
@@ -106,54 +110,59 @@ public class bot extends entity {
         }
 
         nextRandomChangeFrame = random.nextInt(120) + 60;
+
+        // ===== init patrol zone quanh vị trí spawn =====
+        this.patrolCenterX = worldX;
+        int defaultRange = (gp != null) ? gp.tileSize * 2 : 128; // mặc định ±2 tile
+        this.patrolRangePx = (this.patrolRangePx > 0) ? this.patrolRangePx : defaultRange;
+        this.patrolMinX = patrolCenterX - patrolRangePx;
+        this.patrolMaxX = patrolCenterX + patrolRangePx;
     }
 
-    // Thêm constructor overload để tương thích với gamePanel cũ
+    // Constructor overload để tương thích
     public bot(gamePanel gp, int worldX, int worldY) {
-        this(gp, worldX, worldY, BotType.GREEN); // Default to GREEN
+        this(gp, worldX, worldY, BotType.GREEN);
     }
 
-    // SỬA: Phương thức updateAI mới phù hợp với logic vùng chết
+    // ===== chỉnh quãng đường patrol cho từng bot =====
+    public void setPatrolRangePx(int rangePx) {
+        this.patrolRangePx = Math.max(1, rangePx);
+        this.patrolMinX = patrolCenterX - this.patrolRangePx;
+        this.patrolMaxX = patrolCenterX + this.patrolRangePx;
+    }
+
+    // ✅ (4)(5): updateAI kiểu “chướng ngại”: chỉ đi trái/phải trong zone của nó
+    // KHÔNG despawn, KHÔNG chase player
     public boolean updateAI(int playerX, int playerY) {
-        if (isMovingRight) {
-            // Simple right-moving bot (for initial spawn)
+
+        if (direction == null) direction = "left";
+
+        // đảo hướng khi chạm biên zone
+        if ("right".equals(direction) && worldX >= patrolMaxX) {
+            direction = "left";
+        } else if ("left".equals(direction) && worldX <= patrolMinX) {
             direction = "right";
-            worldX += speed;
-
-            // Despawn nếu ra khỏi map
-            if (worldX > gp.worldWidth + gp.tileSize * 2) {
-                return true; // Despawn
-            }
-
-            // Kiểm tra vùng chết
-            if (checkDeathZone()) {
-                return true; // Despawn vì chạm vùng chết
-            }
-
-            return false;
-        } else {
-            // Full AI behavior
-            update();
-
-            // Kiểm tra despawn
-            if (worldX > gp.worldWidth + gp.tileSize * 2) {
-                return true; // Despawn
-            }
-
-            // Kiểm tra vùng chết
-            if (checkDeathZone()) {
-                return true; // Despawn vì chạm vùng chết
-            }
-
-            return false;
         }
+
+        // di chuyển
+        if ("right".equals(direction)) worldX += speed;
+        else worldX -= speed;
+
+        // animation giữ nguyên
+        spriteCounter++;
+        if (spriteCounter > 12) {
+            if (spriteNum == 1) spriteNum = 2;
+            else if (spriteNum == 2) spriteNum = 1;
+            spriteCounter = 0;
+        }
+
+        return false; // không despawn
     }
 
-    // SỬA: Thay đổi phương thức kiểm tra vùng chết
+    // ===== death zone check (giữ nguyên) =====
     private boolean checkDeathZone() {
         if (gp == null || gp.deathZones == null) return false;
 
-        // Kiểm tra nếu bot đang trong vùng chết
         Rectangle botRect = new Rectangle(
                 worldX + solidArea.x,
                 worldY + solidArea.y,
@@ -164,20 +173,16 @@ public class bot extends entity {
         for (Rectangle deathZone : gp.deathZones) {
             if (botRect.intersects(deathZone)) {
                 inDeathZone = true;
-                return true; // Bot chết
+                return true;
             }
         }
 
         return false;
     }
 
-    // SỬA: Phương thức update chính - không còn logic rơi hố
+    // Update chính (giữ nguyên, không dùng để AI kiểu chướng ngại)
     public void update() {
-        if (inDeathZone) {
-            // Bot đã chết trong vùng chết
-            return;
-        }
-
+        if (inDeathZone) return;
         if (gp == null || gp.player == null) return;
 
         aiCounter++;
@@ -188,13 +193,11 @@ public class bot extends entity {
 
         boolean playerInRange = distSq < DETECTION_RANGE * DETECTION_RANGE;
 
-        // 1. Bot-to-bot collision avoidance
         String avoidanceDirection = null;
         if (currentState != BotState.CHASE && currentState != BotState.ALERT) {
             avoidanceDirection = calculateAvoidanceDirection();
         }
 
-        // 2. State machine logic
         switch (currentState) {
             case PATROL:
                 if (playerInRange) {
@@ -237,7 +240,6 @@ public class bot extends entity {
                 break;
         }
 
-        // 3. Apply random direction changes
         if (aiCounter >= nextRandomChangeFrame) {
             if (currentState == BotState.PATROL && random.nextDouble() < 0.3) {
                 int r = random.nextInt(4);
@@ -246,7 +248,6 @@ public class bot extends entity {
             nextRandomChangeFrame = aiCounter + random.nextInt(120) + 60;
         }
 
-        // 4. Random direction flip
         if (currentState == BotState.PATROL && aiCounter % 10 == 0 && random.nextDouble() < randomFlipChance) {
             if (botType == BotType.GREEN || botType == BotType.PURPLE) {
                 if (random.nextDouble() < 0.1) {
@@ -257,15 +258,12 @@ public class bot extends entity {
             }
         }
 
-        // 5. Apply sprint speed multiplier for yellow bots
         int currentSpeed = speed;
         if (botType == BotType.YELLOW && sprintCounter > 0 && !isPaused) {
-            currentSpeed = (int)Math.ceil(baseSpeed * 2.0f);
+            currentSpeed = (int) Math.ceil(baseSpeed * 2.0f);
         }
 
-        // 6. Check collision and movement
         if (!isPaused) {
-            // Apply base movement
             switch (direction) {
                 case "up": worldY -= currentSpeed; break;
                 case "down": worldY += currentSpeed; break;
@@ -273,7 +271,6 @@ public class bot extends entity {
                 case "right": worldX += currentSpeed; break;
             }
 
-            // Apply avoidance
             if (avoidanceDirection != null && (aiCounter - lastAvoidanceFrame) >= 2) {
                 int avoidSpeed = Math.max(1, currentSpeed / 3);
                 switch (avoidanceDirection) {
@@ -285,16 +282,14 @@ public class bot extends entity {
                 lastAvoidanceFrame = aiCounter;
             }
 
-            // Apply purple bot sine wave
             if (botType == BotType.PURPLE && currentState == BotState.PATROL) {
                 double sineValue = Math.sin(sineWaveCounter * 0.1);
-                int verticalOffset = (int)(sineValue * 1.5);
+                int verticalOffset = (int) (sineValue * 1.5);
                 worldY += verticalOffset;
                 worldY = Math.max(0, Math.min(gp.maxWorldRow * gp.tileSize - solidArea.height, worldY));
             }
         }
 
-        // 7. Check bounds
         int minX = 1 * gp.tileSize;
         int minY = 1 * gp.tileSize;
         int maxX = (gp.maxWorldCol - 2) * gp.tileSize;
@@ -305,7 +300,6 @@ public class bot extends entity {
         if (worldX > maxX) worldX = maxX;
         if (worldY > maxY) worldY = maxY;
 
-        // 8. Kiểm tra vùng chết
         checkDeathZone();
     }
 
@@ -356,43 +350,36 @@ public class bot extends entity {
 
             if (distSq < avoidanceRangeSq && distSq > 0) {
                 nearbyBots++;
-                if (distance < closestDist) {
-                    closestDist = distance;
-                }
+                if (distance < closestDist) closestDist = distance;
 
                 if (distance > 0) {
                     double weight = 1.0 / (distance + 1);
-                    avoidX -= (int)((dx / distance) * speed * weight);
-                    avoidY -= (int)((dy / distance) * speed * weight);
+                    avoidX -= (int) ((dx / distance) * speed * weight);
+                    avoidY -= (int) ((dy / distance) * speed * weight);
                 }
             }
         }
 
         if (nearbyBots > 0 && closestDist < gp.tileSize * 0.8) {
             int threshold = speed;
+
             if (Math.abs(avoidX) > threshold && Math.abs(avoidX) > Math.abs(avoidY)) {
                 String newDir = (avoidX < 0) ? "left" : "right";
                 if (newDir.equals(lastAvoidanceDirection) || lastAvoidanceDirection == null) {
                     lastAvoidanceDirection = newDir;
                     return newDir;
-                } else {
-                    return lastAvoidanceDirection;
-                }
+                } else return lastAvoidanceDirection;
+
             } else if (Math.abs(avoidY) > threshold) {
                 String newDir = (avoidY < 0) ? "up" : "down";
                 if (newDir.equals(lastAvoidanceDirection) || lastAvoidanceDirection == null) {
                     lastAvoidanceDirection = newDir;
                     return newDir;
-                } else {
-                    return lastAvoidanceDirection;
-                }
+                } else return lastAvoidanceDirection;
             }
         }
 
-        if (nearbyBots == 0) {
-            lastAvoidanceDirection = null;
-        }
-
+        if (nearbyBots == 0) lastAvoidanceDirection = null;
         return null;
     }
 
@@ -445,53 +432,42 @@ public class bot extends entity {
         }
     }
 
-    /**
-     * Apply damage to this bot. Returns true if the bot is dead and should be removed.
-     */
     public boolean applyDamage(int damage) {
         health -= damage;
         return health <= 0;
     }
 
-    // SỬA: Phương thức draw với camera support - không còn hiệu ứng rơi hố
+    // Draw có camera support (giữ nguyên)
     public void draw(Graphics2D g2, int screenX, int screenY) {
-        // Kiểm tra nếu bot nằm trong tầm nhìn
-        if (!isInCameraView(screenX, screenY)) {
-            return;
-        }
+        if (!isInCameraView(screenX, screenY)) return;
 
-        // Enable antialiasing
         Object oldAA = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         int size = gp.tileSize;
         int padding = Math.max(2, size / 12);
 
-        // Vẽ shadow
         g2.setColor(new Color(0, 0, 0, 70));
-        int shadowW = (int)(size * 0.8);
-        int shadowH = (int)(size * 0.25);
+        int shadowW = (int) (size * 0.8);
+        int shadowH = (int) (size * 0.25);
         int shadowX = screenX + (size - shadowW) / 2;
         int shadowY = screenY + size - shadowH / 2;
         g2.fillOval(shadowX, shadowY, shadowW, shadowH);
 
-        // Body
         int bodyX = screenX + padding;
         int bodyY = screenY + padding;
         int bodyW = size - padding * 2;
         int bodyH = size - padding * 2;
 
-        // Nếu bot trong vùng chết, vẽ với hiệu ứng đỏ
         if (inDeathZone) {
             g2.setColor(new Color(255, 100, 100, 150));
             g2.fillRoundRect(bodyX, bodyY + padding, bodyW, bodyH - padding, size / 3, size / 3);
 
-            // Vẽ dấu X đỏ
             g2.setColor(Color.RED);
             g2.setStroke(new BasicStroke(3));
             g2.drawLine(bodyX, bodyY, bodyX + bodyW, bodyY + bodyH);
             g2.drawLine(bodyX + bodyW, bodyY, bodyX, bodyY + bodyH);
-            return; // Không vẽ tiếp nếu đã chết
+            return;
         }
 
         g2.setColor(bodyColor);
@@ -499,7 +475,6 @@ public class bot extends entity {
         g2.setColor(outlineColor);
         g2.drawRoundRect(bodyX, bodyY + padding, bodyW, bodyH - padding, size / 3, size / 3);
 
-        // Eyes
         int eyeW = Math.max(4, size / 8);
         int eyeH = Math.max(5, size / 6);
         int eyeY = bodyY + size / 4;
@@ -513,13 +488,12 @@ public class bot extends entity {
         g2.setColor(Color.BLACK);
         int pupilW = Math.max(3, eyeW / 2);
         int pupilH = Math.max(3, eyeH / 3);
-        int pupilOffsetX = direction.equals("left") ? -eyeW/6 : direction.equals("right") ? eyeW/6 : 0;
-        int pupilOffsetY = direction.equals("up") ? -eyeH/6 : direction.equals("down") ? eyeH/6 : 0;
+        int pupilOffsetX = direction.equals("left") ? -eyeW / 6 : direction.equals("right") ? eyeW / 6 : 0;
+        int pupilOffsetY = direction.equals("up") ? -eyeH / 6 : direction.equals("down") ? eyeH / 6 : 0;
 
-        g2.fillOval(eyeLX + (eyeW - pupilW)/2 + pupilOffsetX, eyeY + (eyeH - pupilH)/2 + pupilOffsetY, pupilW, pupilH);
-        g2.fillOval(eyeRX + (eyeW - pupilW)/2 + pupilOffsetX, eyeY + (eyeH - pupilH)/2 + pupilOffsetY, pupilW, pupilH);
+        g2.fillOval(eyeLX + (eyeW - pupilW) / 2 + pupilOffsetX, eyeY + (eyeH - pupilH) / 2 + pupilOffsetY, pupilW, pupilH);
+        g2.fillOval(eyeRX + (eyeW - pupilW) / 2 + pupilOffsetX, eyeY + (eyeH - pupilH) / 2 + pupilOffsetY, pupilW, pupilH);
 
-        // Mouth
         g2.setColor(outlineColor.darker());
         int mouthW = bodyW / 3;
         int mouthH = Math.max(2, size / 20);
@@ -527,15 +501,11 @@ public class bot extends entity {
         int mouthY = screenY + size / 2 + size / 8;
         g2.fillRoundRect(mouthX, mouthY, mouthW, mouthH, mouthH, mouthH);
 
-        // DEBUG: Vẽ hitbox
         if (gp.keyH != null && (gp.keyH.debugPress || gp.keyH.showHitbox)) {
             g2.setColor(inDeathZone ? Color.RED : Color.BLUE);
-            g2.drawRect(screenX + solidArea.x,
-                    screenY + solidArea.y,
-                    solidArea.width, solidArea.height);
+            g2.drawRect(screenX + solidArea.x, screenY + solidArea.y, solidArea.width, solidArea.height);
         }
 
-        // Restore AA
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, oldAA);
     }
 
@@ -548,23 +518,19 @@ public class bot extends entity {
                 screenY < gp.height;
     }
 
-    // SỬA: Phương thức draw cũ cho backward compatibility
     public void draw(Graphics2D g2) {
         if (gp == null) return;
 
         int screenX, screenY;
 
-        // Sử dụng camera nếu có
         if (gp.camera != null) {
             screenX = worldX - gp.camera.worldX;
             screenY = worldY - gp.camera.worldY;
         } else {
-            // Fallback: dùng player position
             screenX = worldX - gp.player.worldX + gp.player.screenX;
             screenY = worldY - gp.player.worldY + gp.player.screenY;
         }
 
-        // Kiểm tra xem bot có trong tầm nhìn không
         if (worldX + gp.tileSize > gp.player.worldX - gp.player.screenX &&
                 worldX - gp.tileSize < gp.player.worldX + gp.player.screenX &&
                 worldY + gp.tileSize > gp.player.worldY - gp.player.screenY &&
@@ -573,7 +539,6 @@ public class bot extends entity {
         }
     }
 
-    // Thêm getter/setter cần thiết
     public boolean isInDeathZone() {
         return inDeathZone;
     }
