@@ -11,12 +11,12 @@ public class bot extends entity {
     private Color outlineColor;
     private int health = 1;
     private int aiCounter = 0;
-    private int changeDirInterval = 60; // frames (1 second)
+    private int changeDirInterval = 60; 
     private int stuckCounter = 0;
     private final int stuckThreshold = 15;
     public boolean isMovingRight = false;
 
-    // Bot type for different movement patterns
+    
     public enum BotType {
         GREEN,   // Zig-zag vertically while moving horizontally
         PURPLE,  // Sine-wave horizontal movement
@@ -25,7 +25,7 @@ public class bot extends entity {
 
     public BotType botType;
 
-    // Behavioral states
+   
     public enum BotState {
         PATROL,    // Random movement
         ALERT,     // Detected player, preparing to chase
@@ -37,20 +37,19 @@ public class bot extends entity {
     private int lastPlayerX, lastPlayerY;
     private int searchCounter = 0;
     private int alertCounter = 0;
-    private final int searchDuration = 120; // frames to search (2 seconds)
-    private final int alertDuration = 30;   // frames before chasing (0.5 seconds)
-
+    private final int searchDuration = 120; 
+    private final int alertDuration = 30;   
     // Detection range constants
     private int DETECTION_RANGE;
     private int LOSS_RANGE;
 
-    // Randomness for direction changes
+   
     private int nextRandomChangeFrame = 0;
     private final double randomFlipChance = 0.05;
     private int lastAvoidanceFrame = 0;
     private String lastAvoidanceDirection = null;
 
-    // Pattern-specific variables
+    
     private int zigZagCounter = 0;
     private int sineWaveCounter = 0;
     private int pauseCounter = 0;
@@ -59,20 +58,19 @@ public class bot extends entity {
     private int sprintCounter = 0;
     public int baseSpeed = 2;
 
-    // SỬA: Thay vì rơi hố, chỉ cần kiểm tra vùng chết
+   
     private boolean inDeathZone = false;
 
-    // ===== FIXED PATROL ZONE (đi qua đi lại quanh vị trí spawn) =====
+   
     private int patrolCenterX;
     private int patrolMinX;
     private int patrolMaxX;
-    private int patrolRangePx = 0; // cho phép set riêng từng bot
-
+    private int patrolRangePx = 0; 
     public bot(gamePanel gp, int worldX, int worldY, BotType type) {
         this.gp = gp;
         this.botType = type;
 
-        // Khởi tạo detection range sau khi gp được set
+    
         if (gp != null) {
             this.DETECTION_RANGE = gp.tileSize * 10;
             this.LOSS_RANGE = gp.tileSize * 15;
@@ -93,7 +91,7 @@ public class bot extends entity {
         solidArea.width = 40;
         solidArea.height = 40;
 
-        // Set color based on bot type
+      
         switch (type) {
             case GREEN:
                 bodyColor = new Color(50, 200, 50);
@@ -111,7 +109,7 @@ public class bot extends entity {
 
         nextRandomChangeFrame = random.nextInt(120) + 60;
 
-        // ===== init patrol zone quanh vị trí spawn =====
+      
         this.patrolCenterX = worldX;
         int defaultRange = (gp != null) ? gp.tileSize * 2 : 128; // mặc định ±2 tile
         this.patrolRangePx = (this.patrolRangePx > 0) ? this.patrolRangePx : defaultRange;
@@ -119,36 +117,35 @@ public class bot extends entity {
         this.patrolMaxX = patrolCenterX + patrolRangePx;
     }
 
-    // Constructor overload để tương thích
+
     public bot(gamePanel gp, int worldX, int worldY) {
         this(gp, worldX, worldY, BotType.GREEN);
     }
 
-    // ===== chỉnh quãng đường patrol cho từng bot =====
+ 
     public void setPatrolRangePx(int rangePx) {
         this.patrolRangePx = Math.max(1, rangePx);
         this.patrolMinX = patrolCenterX - this.patrolRangePx;
         this.patrolMaxX = patrolCenterX + this.patrolRangePx;
     }
 
-    // ✅ (4)(5): updateAI kiểu “chướng ngại”: chỉ đi trái/phải trong zone của nó
-    // KHÔNG despawn, KHÔNG chase player
+   
     public boolean updateAI(int playerX, int playerY) {
 
         if (direction == null) direction = "left";
 
-        // đảo hướng khi chạm biên zone
+
         if ("right".equals(direction) && worldX >= patrolMaxX) {
             direction = "left";
         } else if ("left".equals(direction) && worldX <= patrolMinX) {
             direction = "right";
         }
 
-        // di chuyển
+       
         if ("right".equals(direction)) worldX += speed;
         else worldX -= speed;
 
-        // animation giữ nguyên
+     
         spriteCounter++;
         if (spriteCounter > 12) {
             if (spriteNum == 1) spriteNum = 2;
@@ -156,10 +153,10 @@ public class bot extends entity {
             spriteCounter = 0;
         }
 
-        return false; // không despawn
+        return false; 
     }
 
-    // ===== death zone check (giữ nguyên) =====
+  
     private boolean checkDeathZone() {
         if (gp == null || gp.deathZones == null) return false;
 
@@ -180,8 +177,7 @@ public class bot extends entity {
         return false;
     }
 
-    // Update chính (giữ nguyên, không dùng để AI kiểu chướng ngại)
-    public void update() {
+   
         if (inDeathZone) return;
         if (gp == null || gp.player == null) return;
 
