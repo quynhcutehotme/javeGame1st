@@ -1,7 +1,7 @@
 package Game_2D;
 
 import entity.ChiPheo;
-import entity.House;
+import entity.WorldItem;
 import entity.bot;
 import entity.player;
 import java.awt.*;
@@ -19,7 +19,7 @@ import tile.tileManager;
 public class gamePanel extends JPanel implements Runnable, MouseListener {
 
     public ChiPheo chiPheo;
-    public House house;
+    public WorldItem house;
     public Image cloudImage;
 
     // ✅ tách audio

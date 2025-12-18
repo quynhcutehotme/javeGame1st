@@ -5,7 +5,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 
-public class House {
+public class WorldItem {
 
     gamePanel gp;
 
@@ -14,7 +14,7 @@ public class House {
 
     BufferedImage image;
 
-    public House(gamePanel gp, int worldX, int worldY) {
+    public WorldItem(gamePanel gp, int worldX, int worldY) {
         this.gp = gp;
         this.worldX = worldX;
         this.worldY = worldY;

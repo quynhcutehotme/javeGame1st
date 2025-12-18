@@ -1,6 +1,6 @@
 package Game_2D;
 
-import entity.House;
+import entity.WorldItem;
 import entity.bot;
 
 public class BotSpawner {
@@ -15,7 +15,7 @@ public class BotSpawner {
         gp.bots.clear();
 
         // house giữ nguyên
-        gp.house = new House(gp, gp.tileSize * 1, gp.tileSize * 8 + 20);
+        gp.house = new WorldItem(gp, gp.tileSize * 1, gp.tileSize * 8 + 20);
 
         int y = gp.getBotSpawnY(); // giữ nguyên cách tính Y
 
