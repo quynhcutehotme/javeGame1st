@@ -10,7 +10,7 @@ public class entity {
     public int worldX, worldY;
     public int speed;
 
-    // THAY ĐỔI: KHÔNG dùng final
+  
     public int screenX = 0;
     public int screenY = 0;
 
